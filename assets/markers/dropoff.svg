@@ -1,0 +1,21 @@
+<svg width="100%" viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="sphereGrad" cx="38%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="#ffe566"/>
+      <stop offset="40%" stop-color="#f0b800"/>
+      <stop offset="100%" stop-color="#8a6500"/>
+    </radialGradient>
+    <linearGradient id="stickGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#888"/>
+      <stop offset="40%" stop-color="#e0e0e0"/>
+      <stop offset="100%" stop-color="#777"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="94" y="105" width="12" height="175" rx="5" fill="url(#stickGrad)"/>
+
+  <circle cx="100" cy="85" r="82" fill="#7a5c00" opacity="0.2"/>
+  <circle cx="100" cy="85" r="78" fill="url(#sphereGrad)"/>
+
+  <ellipse cx="80" cy="63" rx="20" ry="13" fill="#fff9c0" opacity="0.35" transform="rotate(-20, 80, 63)"/>
+</svg>

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "433870012396",
+    "project_id": "saaradhigo-4f8ad",
+    "storage_bucket": "saaradhigo-4f8ad.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:433870012396:android:3c5202a2bb7a7f84ef4ac9",
+        "android_client_info": {
+          "package_name": "com.deeptrics.saaradhigo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB_8cdGRAA-beBIDc-dYLHwB5zeKrs0TuE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
