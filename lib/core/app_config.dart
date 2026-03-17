@@ -1,3 +1,5 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class AppConfig {
   static const String baseUrl = 'https://vahango-web-application.onrender.com/api/v1';
   static const String wsBaseUrl = 'wss://vahango-web-application.onrender.com/ws';
@@ -16,5 +18,5 @@ class AppConfig {
   static String tripWs(int tripId) => '$wsBaseUrl/ride/trip/$tripId/';
 
   // Google Maps (if needed centrally)
-  static const String googleMapsApiKey = 'AIzaSyC7t999s1L9nsUNDptQyihlQ2_wIUyVpLQ';
+  static String get googleMapsApiKey => dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
 }
