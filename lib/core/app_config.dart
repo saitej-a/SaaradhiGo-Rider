@@ -1,8 +1,8 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AppConfig {
-  static const String baseUrl = 'https://vahango-web-application.onrender.com/api/v1';
-  static const String wsBaseUrl = 'wss://vahango-web-application.onrender.com/ws';
+  static const String baseUrl = 'https://dev.api.saaradhigo.in/api/v1';
+  static const String wsBaseUrl = 'wss://dev.api.saaradhigo.in/ws';
 
   // API Endpoints
   static const String authOtp = '/auth/otp/';

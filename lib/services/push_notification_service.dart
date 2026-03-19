@@ -1,27 +1,39 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../state/ride_notifier.dart';
 
 class PushNotificationService {
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
-  static Future<void> initialize() async {
+  static Future<void> initialize(ProviderContainer container) async {
     try {
       // Foreground messages
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         debugPrint('Got a message whilst in the foreground!');
-        debugPrint('Message data: ${message.data}');
+        
+        if (message.data.isNotEmpty) {
+           container.read(rideNotifierProvider.notifier).updateFromNotification(message.data);
+        }
 
         if (message.notification != null) {
           debugPrint('Message also contained a notification: ${message.notification?.title}');
-          // TODO: Use flutter_local_notifications to show a heads-up notification in foreground
         }
       });
 
       // When app is opened from a notification
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
         debugPrint('A new onMessageOpenedApp event was published!');
-        // TODO: Handle navigation based on message data
+        if (message.data.isNotEmpty) {
+           container.read(rideNotifierProvider.notifier).updateFromNotification(message.data);
+        }
       });
+
+      // When app is launched from terminated state via a notification
+      RemoteMessage? initialMessage = await _messaging.getInitialMessage();
+      if (initialMessage != null && initialMessage.data.isNotEmpty) {
+        container.read(rideNotifierProvider.notifier).updateFromNotification(initialMessage.data);
+      }
 
       _messaging.onTokenRefresh.listen((newToken) {
         debugPrint('FCM Token Refreshed: $newToken');

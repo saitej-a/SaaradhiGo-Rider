@@ -93,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Priority 1: Check actual ride status from response
     if (mapProvider.rideRequestResponse != null) {
       final status = mapProvider.rideRequestResponse['status'];
-      if (status == 'accept') {
+      if (status == 'accept' || status == 'reached') {
         targetRoute = '/driver-found';
       } else if (status == 'start' || status == 'active') {
         targetRoute = '/tracking';
@@ -114,7 +114,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         if (!mounted) return;
         if (status == 'searching') {
           targetRoute = '/searching-driver';
-        } else if (status == 'accept') {
+        } else if (status == 'accept' || status == 'arrive') {
           targetRoute = '/driver-found';
         } else if (status == 'start' || status == 'active') {
           targetRoute = '/tracking';
@@ -412,19 +412,19 @@ class _HomeTab extends StatelessWidget {
                 icon: Icons.bookmark,
                 title: 'Saved',
                 subtitle: fav.addressText,
-                onTap: () async {
+                onTap: () {
                   final provider = context.read<MapProvider>();
                   if (provider.isTripInProgress) {
                     onActiveRideTap();
                     return;
                   }
-                  // Assuming current location as pickup
-                  await provider.prepareAndCalculateRoute(
+                  // Navigate immediately, calculate route in background
+                  context.push('/route-map');
+                  provider.prepareAndCalculateRoute(
                     pickupName: pickupController.text.isNotEmpty ? pickupController.text : 'Current Location',
                     presetPickup: currentPosition,
                     dropPlaceId: fav.latitude != 0 ? '${fav.latitude},${fav.longitude}' : 'current',
                   );
-                  if (context.mounted) context.push('/route-map');
                 },
                 trailing: IconButton(
                   icon: const Icon(Icons.bookmark_remove, color: Colors.white38, size: 20),
@@ -441,24 +441,23 @@ class _HomeTab extends StatelessWidget {
                 icon: Icons.history,
                 title: 'Recent Trip',
                 subtitle: trip.destinationAddress,
-                onTap: () async {
+                onTap: () {
                   final provider = context.read<MapProvider>();
                   if (provider.isTripInProgress) {
                     onActiveRideTap();
                     return;
                   }
-                  
+                  // Navigate immediately, calculate route in background
+                  context.push('/route-map');
                   if (trip.destinationLat != null && trip.destinationLng != null) {
-                    await provider.prepareAndCalculateRoute(
+                    provider.prepareAndCalculateRoute(
                       pickupName: pickupController.text.isNotEmpty ? pickupController.text : 'Current Location',
                       presetPickup: currentPosition,
                       dropPlaceId: '${trip.destinationLat},${trip.destinationLng}',
                     );
                   } else {
-                    // Fallback to place suggestions if no coordinates (less likely with new model)
                     provider.fetchSuggestions(trip.destinationAddress);
                   }
-                  if (context.mounted) context.push('/route-map');
                 },
                 trailing: IconButton(
                   icon: const Icon(Icons.bookmark_add_outlined, color: Color(0xFFEEBD2B), size: 20),

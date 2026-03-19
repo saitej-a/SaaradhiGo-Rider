@@ -344,7 +344,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                                 isSelected: mapProvider.selectedVehicleType == 'bike',
                                 onTap: () => mapProvider.selectVehicleType('bike'),
                                 time: mapProvider.fareEstimates['bike']?['time_to_drop'] != null 
-                                  ? 'Drop in ${mapProvider.fareEstimates['bike']?['time_to_drop']}' 
+                                  ? 'Drop in ${((mapProvider.fareEstimates['bike']?['time_to_drop'] is num ? mapProvider.fareEstimates['bike']!['time_to_drop'] : 0)).ceil()} min' 
                                   : '',
                                 price: '₹${mapProvider.fareEstimates['bike']?['estimated_fare'] ?? '...'}',
                                 icon: Icons.two_wheeler,
@@ -355,7 +355,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                                 isSelected: mapProvider.selectedVehicleType == 'auto',
                                 onTap: () => mapProvider.selectVehicleType('auto'),
                                 time: mapProvider.fareEstimates['auto']?['time_to_drop'] != null 
-                                  ? 'Drop in ${mapProvider.fareEstimates['auto']?['time_to_drop']}' 
+                                  ? 'Drop in ${((mapProvider.fareEstimates['auto']?['time_to_drop'] is num ? mapProvider.fareEstimates['auto']!['time_to_drop'] : 0)).ceil()} min' 
                                   : '',
                                 price: '₹${mapProvider.fareEstimates['auto']?['estimated_fare'] ?? '...'}',
                                 icon: Icons.electric_rickshaw,
@@ -366,7 +366,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                                 isSelected: mapProvider.selectedVehicleType == 'car',
                                 onTap: () => mapProvider.selectVehicleType('car'),
                                 time: mapProvider.fareEstimates['car']?['time_to_drop'] != null 
-                                  ? 'Drop in ${mapProvider.fareEstimates['car']?['time_to_drop']}' 
+                                  ? 'Drop in ${((mapProvider.fareEstimates['car']?['time_to_drop'] is num ? mapProvider.fareEstimates['car']!['time_to_drop'] : 0)).ceil()} min' 
                                   : '',
                                 price: '₹${mapProvider.fareEstimates['car']?['estimated_fare'] ?? '...'}',
                                 icon: Icons.directions_car,

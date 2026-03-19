@@ -875,6 +875,11 @@ class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderS
     if (currentStatus != _lastStatus) {
       _lastStatus = currentStatus;
       _fitDriverAndTarget();
+      
+      // Initialize arrival polyline if entering arrival phase
+      if (currentStatus == 'accept' || currentStatus == 'arrive') {
+        mapProvider.updateArrivingPolyline();
+      }
     }
   }
 

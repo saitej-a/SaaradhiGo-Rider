@@ -24,7 +24,7 @@ class OngoingRideNotificationService {
         autoStart: false,
         isForegroundMode: true,
         notificationChannelId: channelId,
-        initialNotificationTitle: 'Vahango Ride',
+        initialNotificationTitle: 'SaaradhiGo Ride',
         initialNotificationContent: 'Connecting...',
         foregroundServiceNotificationId: notificationId,
       ),

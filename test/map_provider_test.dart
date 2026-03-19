@@ -139,13 +139,13 @@ void main() {
       expect(mapProvider.fareEstimates, isNotEmpty);
       expect(mapProvider.fareEstimates.containsKey('bike'), isTrue);
       expect(mapProvider.fareEstimates['bike']?['estimated_fare'], '100.00');
-      expect(mapProvider.fareEstimates['bike']?['time_to_drop'], '8 mins');
+      expect(mapProvider.fareEstimates['bike']?['time_to_drop'], 8);
       
       expect(mapProvider.fareEstimates.containsKey('auto'), isTrue);
-      expect(mapProvider.fareEstimates['auto']?['time_to_drop'], '10 mins');
+      expect(mapProvider.fareEstimates['auto']?['time_to_drop'], 10);
       
       expect(mapProvider.fareEstimates.containsKey('car'), isTrue);
-      expect(mapProvider.fareEstimates['car']?['time_to_drop'], '9 mins');
+      expect(mapProvider.fareEstimates['car']?['time_to_drop'], 9);
     });
 
     test('selectVehicleType updates state', () {

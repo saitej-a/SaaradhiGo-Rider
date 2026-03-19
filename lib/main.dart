@@ -13,6 +13,9 @@ import 'providers/wallet_provider.dart';
 import 'providers/notification_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'navigation/ride_navigation_handler.dart';
+import 'state/lifecycle_observer.dart';
 
 // Import Screens (to be created)
 import 'screens/splash/splash_screen.dart';
@@ -45,12 +48,12 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final container = ProviderContainer();
+
   try {
-    // For Web, this requires firebase_options.dart which is missing.
-    // On Android/iOS with native config, it works without options.
     await Firebase.initializeApp();
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-    await PushNotificationService.initialize();
+    await PushNotificationService.initialize(container);
     await OngoingRideNotificationService.initialize();
   } catch (e) {
     debugPrint('Firebase initialization error: $e');
@@ -62,15 +65,18 @@ void main() async {
   final isLoggedIn = token != null && token.isNotEmpty;
 
   runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => MapProvider()),
-        ChangeNotifierProvider(create: (_) => HistoryProvider()),
-        ChangeNotifierProvider(create: (_) => WalletProvider()),
-        ChangeNotifierProvider(create: (_) => NotificationProvider()),
-      ],
-      child: VahanGoApp(isFirstLaunch: isFirstLaunch, isLoggedIn: isLoggedIn),
+    UncontrolledProviderScope(
+      container: container,
+      child: MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => AuthProvider()),
+          ChangeNotifierProvider(create: (_) => MapProvider(container: container)),
+          ChangeNotifierProvider(create: (_) => HistoryProvider()),
+          ChangeNotifierProvider(create: (_) => WalletProvider()),
+          ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ],
+        child: VahanGoApp(isFirstLaunch: isFirstLaunch, isLoggedIn: isLoggedIn),
+      ),
     ),
   );
 }
@@ -196,35 +202,39 @@ class VahanGoApp extends StatelessWidget {
       ],
     );
 
-    return MaterialApp.router(
-      title: 'VahanGo',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFEEBD2B),
-          primary: const Color(0xFFEEBD2B),
-          surface: const Color(0xFFF8F7F6),
-          brightness: Brightness.light,
-        ),
-        textTheme: GoogleFonts.plusJakartaSansTextTheme(
-          Theme.of(context).textTheme,
+    return RideNavigationHandler(
+      child: LifecycleObserver(
+        child: MaterialApp.router(
+          title: 'VahanGo',
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFFEEBD2B),
+              primary: const Color(0xFFEEBD2B),
+              surface: const Color(0xFFF8F7F6),
+              brightness: Brightness.light,
+            ),
+            textTheme: GoogleFonts.plusJakartaSansTextTheme(
+              Theme.of(context).textTheme,
+            ),
+          ),
+          darkTheme: ThemeData(
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFFEEBD2B),
+              primary: const Color(0xFFEEBD2B),
+              surface: const Color(0xFF221D10),
+              brightness: Brightness.dark,
+            ),
+            textTheme: GoogleFonts.plusJakartaSansTextTheme(
+              ThemeData(brightness: Brightness.dark).textTheme,
+            ),
+          ),
+          themeMode: ThemeMode.dark,
+          routerConfig: router,
         ),
       ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFEEBD2B),
-          primary: const Color(0xFFEEBD2B),
-          surface: const Color(0xFF221D10),
-          brightness: Brightness.dark,
-        ),
-        textTheme: GoogleFonts.plusJakartaSansTextTheme(
-          ThemeData(brightness: Brightness.dark).textTheme,
-        ),
-      ),
-      themeMode: ThemeMode.dark,
-      routerConfig: router,
     );
   }
 }
