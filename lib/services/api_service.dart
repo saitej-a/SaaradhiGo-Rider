@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import '../core/app_config.dart';
+import 'package:image_picker/image_picker.dart';
 
 abstract class AuthApiClient {
   Future<Map<String, dynamic>?> requestOtp(String phoneNumber, String role);
@@ -12,6 +13,7 @@ abstract class AuthApiClient {
     String deviceToken,
   );
   Future<Map<String, dynamic>?> updateProfile({
+    String? profilePicPath,
     required String fullName,
     required String email,
     required String gender,
@@ -121,6 +123,7 @@ class ApiService implements AuthApiClient {
   // Update Profile
   @override
   Future<Map<String, dynamic>?> updateProfile({
+    String? profilePicPath,
     required String fullName,
     required String email,
     required String gender,
@@ -134,25 +137,56 @@ class ApiService implements AuthApiClient {
     if (_accessToken == null) await _loadTokens();
 
     try {
-      final response = await http.patch(
-        Uri.parse('$baseUrl${AppConfig.authUpdate}'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_accessToken',
-        },
-        body: jsonEncode({
-          'is_updated': true,
-          'full_name': fullName,
-          'email': email,
-          'gender': gender,
-          'dob': dob,
-          'emergency_contact': emergencyContact,
-          'house_no': houseNo,
-          'street': street,
-          'city': city,
-          'zip_code': zipCode,
-        }),
-      );
+      final uri = Uri.parse('$baseUrl${AppConfig.authUpdate}');
+      
+      http.Response response;
+
+      if (profilePicPath != null && profilePicPath.isNotEmpty) {
+        var request = http.MultipartRequest('PATCH', uri);
+        request.headers['Authorization'] = 'Bearer $_accessToken';
+        
+        request.fields['is_updated'] = 'true';
+        request.fields['full_name'] = fullName;
+        request.fields['email'] = email;
+        request.fields['gender'] = gender;
+        request.fields['dob'] = dob;
+        request.fields['emergency_contact'] = emergencyContact;
+        request.fields['house_no'] = houseNo;
+        request.fields['street'] = street;
+        request.fields['city'] = city;
+        request.fields['zip_code'] = zipCode;
+        
+        final xFile = XFile(profilePicPath);
+        final bytes = await xFile.readAsBytes();
+        request.files.add(http.MultipartFile.fromBytes(
+          'avatar',
+          bytes,
+          filename: xFile.name.isNotEmpty ? xFile.name : 'avatar.jpg',
+        ));
+
+        final streamedResponse = await request.send();
+        response = await http.Response.fromStream(streamedResponse);
+      } else {
+        response = await http.patch(
+          uri,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $_accessToken',
+          },
+          body: jsonEncode({
+            'is_updated': true,
+            'full_name': fullName,
+            'email': email,
+            'gender': gender,
+            'dob': dob,
+            'emergency_contact': emergencyContact,
+            'house_no': houseNo,
+            'street': street,
+            'city': city,
+            'zip_code': zipCode,
+          }),
+        );
+      }
 
       if (response.statusCode != 200) {
         return null;

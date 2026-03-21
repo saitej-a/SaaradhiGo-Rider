@@ -1,8 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-
 import 'dart:io';
 import 'dart:ui';
-import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -109,8 +108,12 @@ class _EditPersonalInformationScreenState
   }
 
   ImageProvider _profileImage(String remoteAvatarUrl) {
-    if (_localAvatarPath != null) {
-      return FileImage(File(_localAvatarPath!));
+    if (_localAvatarPath != null && _localAvatarPath!.isNotEmpty) {
+      if (kIsWeb) {
+        return NetworkImage(_localAvatarPath!);
+      } else {
+        return FileImage(File(_localAvatarPath!));
+      }
     }
     return NetworkImage(remoteAvatarUrl);
   }
@@ -124,10 +127,68 @@ class _EditPersonalInformationScreenState
       );
   }
 
-  Future<void> _pickAvatar() async {
+  Future<void> _showImageSourceModal() async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _screenBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 20),
+            Text('SET PROFILE PHOTO', style: GoogleFonts.inter(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _modalOption(icon: Icons.camera_alt_rounded, label: 'Camera', onTap: () {
+                  Navigator.pop(context);
+                  _pickAvatar(ImageSource.camera);
+                }),
+                _modalOption(icon: Icons.photo_library_rounded, label: 'Gallery', onTap: () {
+                  Navigator.pop(context);
+                  _pickAvatar(ImageSource.gallery);
+                }),
+              ],
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _modalOption({required IconData icon, required String label, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A2620),
+              shape: BoxShape.circle,
+              border: Border.all(color: _borderColor),
+            ),
+            child: Icon(icon, color: _primaryColor, size: 28),
+          ),
+          const SizedBox(height: 10),
+          Text(label, style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickAvatar(ImageSource source) async {
     try {
       final pickedImage = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         imageQuality: 85,
         maxWidth: 1024,
       );
@@ -138,7 +199,8 @@ class _EditPersonalInformationScreenState
         _localAvatarPath = pickedImage.path;
       });
       await context.read<AuthProvider>().setLocalAvatarPath(pickedImage.path);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error picking avatar: $e');
       _showMessage('Unable to pick image right now.');
     }
   }
@@ -340,7 +402,7 @@ class _EditPersonalInformationScreenState
                             right: 0,
                             bottom: 0,
                             child: InkWell(
-                              onTap: _pickAvatar,
+                               onTap: _showImageSourceModal,
                               borderRadius: BorderRadius.circular(16),
                               child: Container(
                                 width: 34,

@@ -667,6 +667,7 @@ class AuthProvider extends ChangeNotifier {
     _setLoading(true);
     _setError(null);
     final response = await _apiService.updateProfile(
+      profilePicPath: _localAvatarPath,
       fullName: profileData['full_name'] ?? '',
       email: profileData['email'] ?? '',
       gender: profileData['gender'] ?? '',

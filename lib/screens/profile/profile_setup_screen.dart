@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../providers/auth_provider.dart';
 
 class ProfileSetupScreen extends StatefulWidget {
@@ -20,6 +24,135 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final TextEditingController _streetNameController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
   final TextEditingController _zipCodeController = TextEditingController();
+
+  XFile? _selectedImage;
+  final ImagePicker _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      if (auth.fullName != null) _nameController.text = auth.fullName!;
+      if (auth.email != null) _emailController.text = auth.email!;
+      if (auth.dob != null) _dobController.text = auth.dob!;
+      if (auth.emergencyContact != null) _emergencyContactController.text = auth.emergencyContact!;
+      if (auth.houseNo != null) _houseNoController.text = auth.houseNo!;
+      if (auth.street != null) _streetNameController.text = auth.street!;
+      if (auth.city != null) _cityController.text = auth.city!;
+      if (auth.zipCode != null) _zipCodeController.text = auth.zipCode!;
+      if (auth.gender != null) {
+        final g = auth.gender!.toLowerCase();
+        if (g == 'male' || g == 'female' || g == 'other') {
+          setState(() {
+            _selectedGender = auth.gender![0].toUpperCase() + auth.gender!.substring(1).toLowerCase();
+          });
+        }
+      }
+      if (auth.localAvatarPath != null && auth.localAvatarPath!.isNotEmpty) {
+        if (!kIsWeb) {
+          final f = File(auth.localAvatarPath!);
+          if (f.existsSync()) {
+            setState(() {
+              _selectedImage = XFile(f.path);
+            });
+          }
+        } else {
+          setState(() {
+            _selectedImage = XFile(auth.localAvatarPath!);
+          });
+        }
+      }
+    });
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.dark(
+              primary: Theme.of(context).colorScheme.primary,
+              onPrimary: Colors.black,
+              surface: const Color(0xFF1E1C18),
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _dobController.text = "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+      });
+    }
+  }
+
+  Future<void> _showImageSourceActionSheet(BuildContext context) async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1C18),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            Text('CHOOSE IMAGE FROM', style: GoogleFonts.inter(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded, color: Color(0xFFEEBD2B)),
+              title: Text('Camera', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded, color: Color(0xFFEEBD2B)),
+              title: Text('Gallery', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w500)),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? image = await _picker.pickImage(source: source);
+      if (image != null) {
+        setState(() {
+          _selectedImage = image;
+        });
+        if (mounted) {
+          final authProvider = Provider.of<AuthProvider>(context, listen: false);
+          authProvider.setLocalAvatarPath(image.path);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to pick image. Please check permissions.')),
+        );
+      }
+    }
+  }
 
   void _saveAndContinue() async {
     final Map<String, dynamic> profileData = {
@@ -48,7 +181,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     }
   }
 
-  Widget _buildTextField(String label, String placeholder, {IconData? leadingIcon, TextInputType keyboardType = TextInputType.text, TextEditingController? controller}) {
+  Widget _buildTextField(String label, String placeholder, {IconData? leadingIcon, IconData? suffixIcon, TextInputType keyboardType = TextInputType.text, TextEditingController? controller, bool readOnly = false, VoidCallback? onTap}) {
     final colorScheme = Theme.of(context).colorScheme;
     
     return Column(
@@ -69,12 +202,15 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           child: TextField(
             controller: controller,
             keyboardType: keyboardType,
+            readOnly: readOnly,
+            onTap: onTap,
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             decoration: InputDecoration(
               hintText: placeholder,
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: leadingIcon != null ? 0 : 16, vertical: 16),
+              contentPadding: EdgeInsets.symmetric(horizontal: (leadingIcon != null || suffixIcon != null) ? 0 : 16, vertical: 16),
               prefixIcon: leadingIcon != null ? Icon(leadingIcon, color: colorScheme.primary) : null,
+              suffixIcon: suffixIcon != null ? Icon(suffixIcon, color: colorScheme.primary, size: 20) : null,
               hintStyle: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.4), fontWeight: FontWeight.normal),
             ),
           ),
@@ -128,23 +264,38 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                           shape: BoxShape.circle,
                           color: colorScheme.surfaceContainerHighest,
                           border: Border.all(color: colorScheme.primary.withValues(alpha: 0.5), width: 2),
-                          image: const DecorationImage(
-                            image: NetworkImage('https://via.placeholder.com/150'),
-                            fit: BoxFit.cover,
-                          ),
+                          image: _selectedImage != null
+                              ? DecorationImage(
+                                  image: kIsWeb
+                                      ? NetworkImage(_selectedImage!.path) as ImageProvider
+                                      : FileImage(File(_selectedImage!.path)),
+                                  fit: BoxFit.cover,
+                                )
+                              : context.watch<AuthProvider>().avatarUrl != null
+                                  ? DecorationImage(
+                                      image: NetworkImage(context.watch<AuthProvider>().avatarUrl!),
+                                      fit: BoxFit.cover,
+                                    )
+                                  : null,
                         ),
+                        child: _selectedImage == null && context.watch<AuthProvider>().avatarUrl == null
+                            ? Icon(Icons.person, size: 60, color: colorScheme.onSurfaceVariant)
+                            : null,
                       ),
                       Positioned(
                         bottom: 0,
                         right: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: colorScheme.primary,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: colorScheme.surface, width: 2),
+                        child: GestureDetector(
+                        onTap: () => _showImageSourceActionSheet(context),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: colorScheme.surface, width: 2),
+                            ),
+                            child: Icon(Icons.edit, color: colorScheme.onPrimary, size: 16),
                           ),
-                          child: Icon(Icons.edit, color: colorScheme.onPrimary, size: 16),
                         ),
                       ),
                     ],
@@ -201,7 +352,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 ),
                 
                 const SizedBox(height: 16),
-                _buildTextField('Date of Birth', 'YYYY-MM-DD', keyboardType: TextInputType.datetime, controller: _dobController),
+                _buildTextField('Date of Birth', 'YYYY-MM-DD', controller: _dobController, readOnly: true, onTap: () => _selectDate(context), suffixIcon: Icons.calendar_today),
                 
                 const SizedBox(height: 32),
                 Row(

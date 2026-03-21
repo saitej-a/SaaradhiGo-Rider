@@ -250,16 +250,6 @@ class _WalletBalanceCard extends StatelessWidget {
                   },
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _WalletActionButton(
-                  icon: Icons.send_rounded,
-                  label: 'Send',
-                  onTap: () {
-                    // TODO: Implement Send Money logic
-                  },
-                ),
-              ),
             ],
           ),
         ],
