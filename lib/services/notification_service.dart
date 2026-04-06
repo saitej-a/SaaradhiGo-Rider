@@ -6,7 +6,7 @@ import 'models/notification_model.dart';
 import '../core/app_config.dart';
 
 class NotificationService {
-  static const String _baseUrl = AppConfig.baseUrl;
+  static String _baseUrl = AppConfig.baseUrl;
 
   Future<Map<String, dynamic>> fetchNotifications(String token, {int page = 1}) async {
     final String url = '$_baseUrl${AppConfig.riderNotifications}?page=$page';
@@ -77,7 +77,7 @@ class NotificationService {
   }
 
   Future<bool> markAllAsRead(String token) async {
-    const String url = '$_baseUrl/rider/notifications/read-all/';
+    final String url = '$_baseUrl/rider/notifications/read-all/';
     
     try {
       final response = await http.post(

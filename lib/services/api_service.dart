@@ -29,7 +29,7 @@ abstract class AuthApiClient {
 }
 
 class ApiService implements AuthApiClient {
-  static const String baseUrl = AppConfig.baseUrl;
+  static String baseUrl = AppConfig.baseUrl;
 
   // Singleton pattern
   static final ApiService _instance = ApiService._internal();

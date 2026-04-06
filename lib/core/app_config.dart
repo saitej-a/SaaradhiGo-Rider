@@ -1,8 +1,8 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AppConfig {
-  static const String baseUrl = 'https://dev.api.saaradhigo.in/api/v1';
-  static const String wsBaseUrl = 'wss://dev.api.saaradhigo.in/ws';
+  static String get baseUrl => dotenv.env['BASE_URL'] ?? 'https://dev.api.saaradhigo.in/api/v1';
+  static String get wsBaseUrl => dotenv.env['WS_BASE_URL'] ?? 'wss://dev.api.saaradhigo.in/ws';
 
   // API Endpoints
   static const String authOtp = '/auth/otp/';
@@ -14,7 +14,7 @@ class AppConfig {
   static const String rideHistory = '/ride/ride-history/';
 
   // WebSocket Endpoints
-  static const String rideRequestWs = '$wsBaseUrl/ride/request/';
+  static String rideRequestWs = '$wsBaseUrl/ride/request/';
   static String tripWs(int tripId) => '$wsBaseUrl/ride/trip/$tripId/';
 
   // Google Maps (if needed centrally)

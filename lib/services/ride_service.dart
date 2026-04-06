@@ -14,7 +14,7 @@ class RideService {
   Stream<dynamic>? get tripUpdates => _tripChannel?.stream;
 
   Future<List<Trip>> fetchRideHistory(String token) async {
-    const String url = '${AppConfig.baseUrl}${AppConfig.rideHistory}';
+    String url = '${AppConfig.baseUrl}${AppConfig.rideHistory}';
     
     try {
       final response = await http.get(
