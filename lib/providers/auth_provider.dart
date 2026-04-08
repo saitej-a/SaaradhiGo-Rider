@@ -326,12 +326,36 @@ class AuthProvider extends ChangeNotifier {
     await prefs.setBool(_marketingOptInKey, _marketingOptIn);
     await prefs.setBool(_isUpdatedKey, _isUpdated);
 
-    if (_dob == null) await prefs.remove(_dobKey); else await prefs.setString(_dobKey, _dob!);
-    if (_emergencyContact == null) await prefs.remove(_emergencyContactKey); else await prefs.setString(_emergencyContactKey, _emergencyContact!);
-    if (_houseNo == null) await prefs.remove(_houseNoKey); else await prefs.setString(_houseNoKey, _houseNo!);
-    if (_street == null) await prefs.remove(_streetKey); else await prefs.setString(_streetKey, _street!);
-    if (_city == null) await prefs.remove(_cityKey); else await prefs.setString(_cityKey, _city!);
-    if (_zipCode == null) await prefs.remove(_zipCodeKey); else await prefs.setString(_zipCodeKey, _zipCode!);
+    if (_dob == null) {
+      await prefs.remove(_dobKey);
+    } else {
+      await prefs.setString(_dobKey, _dob!);
+    }
+    if (_emergencyContact == null) {
+      await prefs.remove(_emergencyContactKey);
+    } else {
+      await prefs.setString(_emergencyContactKey, _emergencyContact!);
+    }
+    if (_houseNo == null) {
+      await prefs.remove(_houseNoKey);
+    } else {
+      await prefs.setString(_houseNoKey, _houseNo!);
+    }
+    if (_street == null) {
+      await prefs.remove(_streetKey);
+    } else {
+      await prefs.setString(_streetKey, _street!);
+    }
+    if (_city == null) {
+      await prefs.remove(_cityKey);
+    } else {
+      await prefs.setString(_cityKey, _city!);
+    }
+    if (_zipCode == null) {
+      await prefs.remove(_zipCodeKey);
+    } else {
+      await prefs.setString(_zipCodeKey, _zipCode!);
+    }
   }
 
   Future<void> _clearProfilePrefs() async {

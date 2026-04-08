@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
-import 'api_service.dart';
 import 'models/wallet_model.dart';
 import '../core/app_config.dart';
 
@@ -74,14 +73,13 @@ class WalletService {
   Future<Map<String, dynamic>?> createTopUpOrder(String token, double amount) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/payments/create-order/'),
+        Uri.parse('$baseUrl/rider/wallet/create-order/'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
-          'amount': amount,
-          'type': 'topup'
+          'amount': amount.toStringAsFixed(2),
         }),
       );
 
@@ -91,6 +89,36 @@ class WalletService {
       return null;
     } catch (e) {
       debugPrint('Create TopUp Order error: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> verifyTopUpPayment(
+    String token,
+    String orderId,
+    String paymentId,
+    String signature,
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/rider/wallet/verify/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'razorpay_order_id': orderId,
+          'razorpay_payment_id': paymentId,
+          'razorpay_signature': signature,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Verify TopUp Payment error: $e');
       return null;
     }
   }

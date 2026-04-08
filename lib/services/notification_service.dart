@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'models/notification_model.dart';
 import '../core/app_config.dart';
 
 class NotificationService {
-  static String _baseUrl = AppConfig.baseUrl;
+  static final String _baseUrl = AppConfig.baseUrl;
 
   Future<Map<String, dynamic>> fetchNotifications(String token, {int page = 1}) async {
     final String url = '$_baseUrl${AppConfig.riderNotifications}?page=$page';

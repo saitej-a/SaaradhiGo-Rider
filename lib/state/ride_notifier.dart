@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:flutter/foundation.dart';
 import 'ride_state.dart';
 import 'ride_persistence.dart';
 import '../services/models/location_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/websocket_service.dart';
+import '../services/ride_service.dart';
 
 final rideNotifierProvider = NotifierProvider<RideNotifier, RideState>(RideNotifier.new);
 
@@ -35,8 +35,72 @@ class RideNotifier extends Notifier<RideState> {
         if (token != null) {
           ref.read(webSocketServiceProvider).connectToTrip(token, int.parse(state.tripId!));
         }
+        await syncStateFromBackend(state.tripId!);
       }
     }
+  }
+
+  Future<void> syncStateFromBackend(String tripId) async {
+    state = state.copyWith(isSyncing: true);
+
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('access_token');
+
+    if (token == null) {
+      clearState();
+      state = state.copyWith(isSyncing: false);
+      return;
+    }
+
+    final rideService = RideService();
+    
+    // Fetch in parallel
+    final results = await Future.wait([
+      rideService.getTripStatus(token, tripId),
+      rideService.getTripDetails(token, tripId),
+    ]);
+
+    final statusData = results[0];
+    final detailsData = results[1];
+
+    if (statusData == null || statusData['status'] == 'error' || statusData['data'] == null) {
+      clearState();
+      state = state.copyWith(isSyncing: false);
+      return;
+    }
+
+    final String tripStatus = statusData['data']['status'] ?? '';
+    
+    if (tripStatus == 'cancelled') {
+        clearState();
+        state = state.copyWith(showCancelledOverlay: true);
+        Future.delayed(const Duration(seconds: 3), () {
+            state = state.copyWith(showCancelledOverlay: false);
+        });
+        return;
+    }
+
+    RideStatus newStatus = state.status;
+    if (tripStatus == 'accepted') newStatus = RideStatus.driverAccepted;
+    else if (tripStatus == 'arrived') newStatus = RideStatus.driverArrived;
+    else if (tripStatus == 'started' || tripStatus == 'in_progress') newStatus = RideStatus.rideStarted;
+    else if (tripStatus == 'completed') newStatus = RideStatus.paymentPending;
+
+    Map<String, dynamic> mergedResponse = Map<String, dynamic>.from(state.rawResponse ?? {});
+    if (detailsData != null && detailsData['data'] != null) {
+       final dData = detailsData['data'];
+       if (dData['driver_name'] != null) mergedResponse['driver_name'] = dData['driver_name'];
+       if (dData['vehicle_info'] != null) mergedResponse['vehicle_info'] = dData['vehicle_info'];
+       if (dData['otp'] != null) mergedResponse['otp'] = dData['otp'];
+       if (dData['driver_rating'] != null) mergedResponse['driver_rating'] = dData['driver_rating'];
+    }
+
+    state = state.copyWith(
+       status: newStatus,
+       rawResponse: mergedResponse,
+       isSyncing: false,
+    );
+    _saveState();
   }
 
   void _saveState() {

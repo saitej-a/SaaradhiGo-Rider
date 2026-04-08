@@ -111,8 +111,9 @@ class LocationService {
            }
 
            List<String> parts = [];
-           if (route != null) parts.add(route);
-           else if (sublocality != null) parts.add(sublocality);
+           if (route != null) {
+             parts.add(route);
+           } else if (sublocality != null) parts.add(sublocality);
            if (locality != null) parts.add(locality);
 
            if (parts.isNotEmpty) return parts.join(', ');

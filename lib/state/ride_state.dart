@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
-import '../services/models/trip_model.dart';
 import '../services/models/location_model.dart';
 
 enum RideStatus {
@@ -29,6 +28,8 @@ class RideState {
   final String? duration;
   final Map<String, dynamic>? fareEstimates;
   final Map<String, dynamic>? rawResponse;
+  final bool isSyncing;
+  final bool showCancelledOverlay;
 
   const RideState({
     this.status = RideStatus.none,
@@ -43,6 +44,8 @@ class RideState {
     this.duration,
     this.fareEstimates,
     this.rawResponse,
+    this.isSyncing = false,
+    this.showCancelledOverlay = false,
   });
 
   RideState copyWith({
@@ -58,6 +61,8 @@ class RideState {
     String? duration,
     Map<String, dynamic>? fareEstimates,
     Map<String, dynamic>? rawResponse,
+    bool? isSyncing,
+    bool? showCancelledOverlay,
   }) {
     return RideState(
       status: status ?? this.status,
@@ -72,6 +77,8 @@ class RideState {
       duration: duration ?? this.duration,
       fareEstimates: fareEstimates ?? this.fareEstimates,
       rawResponse: rawResponse ?? this.rawResponse,
+      isSyncing: isSyncing ?? this.isSyncing,
+      showCancelledOverlay: showCancelledOverlay ?? this.showCancelledOverlay,
     );
   }
 

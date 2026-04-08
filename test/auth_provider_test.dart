@@ -27,6 +27,7 @@ class _FakeAuthApiClient implements AuthApiClient {
     required String dob,
     required String emergencyContact,
     required String houseNo,
+    String? profilePicPath,
     required String street,
     required String city,
     required String zipCode,

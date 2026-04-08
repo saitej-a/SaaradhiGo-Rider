@@ -3,7 +3,6 @@ import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter/foundation.dart';
 import 'models/trip_model.dart';
-import 'api_service.dart';
 import '../core/app_config.dart';
 
 class RideService {
@@ -112,5 +111,98 @@ class RideService {
     _rideRequestChannel = null;
     _tripChannel = null;
     debugPrint('All WebSocket connections closed');
+  }
+
+  Future<Map<String, dynamic>?> createTripPaymentOrder(String token, int tripId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/payments/create-order/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'trip_id': tripId,
+        }),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Create Trip Payment Order error: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> verifyTripPayment(
+    String token,
+    String orderId,
+    String paymentId,
+    String signature,
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/payments/verify/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'razorpay_order_id': orderId,
+          'razorpay_payment_id': paymentId,
+          'razorpay_signature': signature,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Verify Trip Payment error: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getTripStatus(String token, String tripId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}/ride/trip/$tripId/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Get Trip Status error: $e');
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getTripDetails(String token, String tripId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}/ride/trip/$tripId/details/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Get Trip Details error: $e');
+      return null;
+    }
   }
 }

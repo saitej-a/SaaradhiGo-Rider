@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:uuid/uuid.dart';
@@ -11,7 +10,6 @@ import '../services/ride_service.dart';
 import '../services/models/location_model.dart';
 import '../services/models/trip_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/ongoing_ride_notification_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state/ride_notifier.dart';
 import '../state/ride_state.dart';

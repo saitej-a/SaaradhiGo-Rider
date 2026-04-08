@@ -1,20 +1,20 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
-import '../../providers/auth_provider.dart';
 import '../../providers/map_provider.dart';
+import '../../providers/wallet_provider.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import '../../services/ride_service.dart';
+import '../../core/app_config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 
 class SetDestinationScreen extends StatelessWidget {
@@ -676,71 +676,313 @@ class _FullMapTrackingScreenState extends State<FullMapTrackingScreen> {
   }
 }
 
-class RidePaymentSummaryScreen extends StatelessWidget {
+class RidePaymentSummaryScreen extends StatefulWidget {
   const RidePaymentSummaryScreen({super.key});
 
   @override
+  State<RidePaymentSummaryScreen> createState() => _RidePaymentSummaryScreenState();
+}
+
+class _RidePaymentSummaryScreenState extends State<RidePaymentSummaryScreen> {
+  String _selectedPaymentMethod = 'wallet';
+  late Razorpay _razorpay;
+  Completer<PaymentSuccessResponse?>? _paymentCompleter;
+  final RideService _rideService = RideService();
+  bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<WalletProvider>().refreshWallet();
+    });
+  }
+
+  @override
+  void dispose() {
+    _razorpay.clear();
+    super.dispose();
+  }
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    if (_paymentCompleter != null && !_paymentCompleter!.isCompleted) {
+      _paymentCompleter!.complete(response);
+    }
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    if (_paymentCompleter != null && !_paymentCompleter!.isCompleted) {
+      _paymentCompleter!.complete(null);
+    }
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    if (_paymentCompleter != null && !_paymentCompleter!.isCompleted) {
+       _paymentCompleter!.complete(null);
+    }
+  }
+
+  void _processPayment(double fare, WalletProvider walletProvider, dynamic rideData) async {
+    if (_selectedPaymentMethod == 'wallet') {
+      if (walletProvider.balance < fare) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Insufficient wallet balance. Please add funds.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      } else {
+        // Backend handles wallet deduction when trip ends
+        context.push('/rate-driver');
+      }
+    } else {
+      setState(() => _isProcessing = true);
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final token = prefs.getString('access_token');
+        if (token == null) return;
+        
+        final tripIdStr = rideData?['trip_id'] ?? rideData?['id']?.toString() ?? '101'; // Defaulting to 101 for safety if trip_id is missing from provider
+        final tripId = int.tryParse(tripIdStr.toString()) ?? 101;
+
+        final orderData = await _rideService.createTripPaymentOrder(token, tripId);
+        if (orderData == null || orderData['status'] != 'success') {
+          setState(() => _isProcessing = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to initiate payment. Please try again.')),
+          );
+          return;
+        }
+
+        final orderId = orderData['data']['razorpay_order_id'];
+        
+        _paymentCompleter = Completer<PaymentSuccessResponse?>();
+        var options = {
+          'key': AppConfig.razorpayKey,
+          'amount': (fare * 100).toInt(),
+          'name': 'SaaradhiGo',
+          'description': 'Payment for Trip #$tripId',
+          'order_id': orderId,
+          'prefill': {
+            'contact': '9876543210',
+            'email': 'rider@saaradhigo.com'
+          }
+        };
+
+        _razorpay.open(options);
+        final successResponse = await _paymentCompleter!.future;
+        
+        if (successResponse != null && successResponse.paymentId != null && successResponse.signature != null) {
+          final verifyResult = await _rideService.verifyTripPayment(
+              token, orderId, successResponse.paymentId!, successResponse.signature!);
+              
+          if (verifyResult != null && verifyResult['status'] == 'success') {
+             if (mounted) context.push('/rate-driver');
+          } else {
+             if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment verification failed.')));
+          }
+        } else {
+           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment cancelled.')));
+        }
+      } catch (e) {
+         debugPrint(e.toString());
+      } finally {
+         if (mounted) setState(() => _isProcessing = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Consumer<MapProvider>(
-      builder: (context, mapProvider, child) {
+    return Consumer2<MapProvider, WalletProvider>(
+      builder: (context, mapProvider, walletProvider, child) {
         final rideData = mapProvider.rideRequestResponse;
-        final totalFare = rideData?['total_fare'] ?? rideData?['estimated_fare'] ?? '0.00';
-        final currency = rideData?['currency'] ?? 'INR';
+        final totalFareStr = rideData?['total_fare'] ?? rideData?['estimated_fare'] ?? '0.00';
+        final totalFare = double.tryParse(totalFareStr.toString()) ?? 0.0;
+        final currency = rideData?['currency'] ?? '₹';
 
         return Scaffold(
           backgroundColor: const Color(0xFF12110E),
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+              onPressed: () => context.pop(),
+            ),
+            title: Text(
+              'Payment Methods',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            centerTitle: true,
+          ),
           body: SafeArea(
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               children: [
-                const Icon(Icons.check_circle, color: Color(0xFFEEBD2B), size: 64),
-                const SizedBox(height: 8),
-                const Text(
-                  'Ride Completed',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF24211C),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0x1AFFFFFF)),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Ride Fare',
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFF94A3B8),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '$currency$totalFareStr',
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 40,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '$currency $totalFare',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 44,
-                    fontWeight: FontWeight.w800,
-                  ),
+                const SizedBox(height: 32),
+                
+                // Payment Options List
+                _buildPaymentOption(
+                  id: 'wallet',
+                  title: 'Pay from Wallet',
+                  subtitle: 'Current Balance: ₹${walletProvider.balance.toStringAsFixed(2)}',
+                  icon: Icons.account_balance_wallet,
+                  isSelected: _selectedPaymentMethod == 'wallet',
+                  onTap: () => setState(() => _selectedPaymentMethod = 'wallet'),
                 ),
-                const SizedBox(height: 14),
-                _DarkCard(child: _FareBreakdown(rideData: rideData)),
-                const SizedBox(height: 10),
-                _DarkCard(
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.account_balance_wallet,
-                      color: Color(0xFFEEBD2B),
+                const SizedBox(height: 12),
+                _buildPaymentOption(
+                  id: 'upi_card',
+                  title: 'Pay via UPI/Card',
+                  icon: Icons.credit_card,
+                  isSelected: _selectedPaymentMethod == 'upi_card',
+                  onTap: () => setState(() => _selectedPaymentMethod = 'upi_card'),
+                ),
+                
+                const SizedBox(height: 48),
+                
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isProcessing ? null : () => _processPayment(totalFare, walletProvider, rideData),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEEBD2B),
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 0,
                     ),
-                    title: Text(
-                      'Paid via ${mapProvider.selectedPaymentMethod.toUpperCase()} Wallet',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    trailing: const Icon(Icons.check, color: Color(0xFFEEBD2B)),
+                    child: _isProcessing
+                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                      : Text(
+                          'Confirm & Pay',
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                   ),
                 ),
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: () => context.push('/rate-driver'),
-                  child: const Text('Done'),
+                const SizedBox(height: 16),
+                Center(
+                  child: TextButton(
+                    onPressed: () {
+                      context.push('/rate-driver');
+                    },
+                    child: Text(
+                      'Pay with Cash instead?',
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFF94A3B8),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
                 ),
-                TextButton(onPressed: () {}, child: const Text('Download Invoice')),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildPaymentOption({
+    required String id,
+    required String title,
+    String? subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFEEBD2B).withValues(alpha: 0.1) : const Color(0xFF24211C),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? const Color(0xFFEEBD2B) : const Color(0x1AFFFFFF),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: isSelected ? const Color(0xFFEEBD2B) : Colors.white70, size: 28),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.inter(
+                        color: const Color(0xFF94A3B8),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (isSelected)
+              const Icon(Icons.radio_button_checked, color: Color(0xFFEEBD2B))
+            else
+              const Icon(Icons.radio_button_unchecked, color: Colors.white30),
+          ],
+        ),
+      ),
     );
   }
 }

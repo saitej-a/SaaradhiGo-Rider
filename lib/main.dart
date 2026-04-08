@@ -13,9 +13,11 @@ import 'providers/wallet_provider.dart';
 import 'providers/notification_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' as riverpod;
 import 'navigation/ride_navigation_handler.dart';
 import 'state/lifecycle_observer.dart';
+import 'state/ride_notifier.dart';
+import 'state/ride_state.dart';
 
 // Import Screens (to be created)
 import 'screens/splash/splash_screen.dart';
@@ -23,7 +25,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/otp_verification_screen.dart';
 import 'screens/profile/profile_setup_screen.dart';
 import 'screens/home/home_screen.dart';
-import 'screens/home/rider_flow_screens.dart' hide RouteMapScreen, PrivacySecurityScreen, EditPersonalInformationScreen, HelpSupportScreen, ManagePaymentMethodsScreen;
+import 'screens/home/rider_flow_screens.dart';
 import 'screens/home/notification_screen.dart';
 import 'screens/home/route_map_screen.dart';
 import 'screens/home/precise_pickup_screen.dart';
@@ -31,11 +33,16 @@ import 'screens/profile/privacy_security_screen.dart';
 import 'screens/profile/edit_personal_information_screen.dart';
 import 'screens/profile/help_support_screen.dart';
 import 'screens/profile/manage_payment_methods_screen.dart';
+import 'screens/home/add_money_screen.dart';
+import 'screens/home/payment_success_screen.dart';
+
+import 'screens/components/sync_overlay.dart';
+import 'screens/components/cancelled_overlay.dart';
+import 'screens/components/payment_pending_banner.dart';
 
 import 'services/push_notification_service.dart';
 import 'services/ongoing_ride_notification_service.dart';
 
-import 'package:flutter/foundation.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -48,7 +55,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final container = ProviderContainer();
+  final container = riverpod.ProviderContainer();
 
   try {
     await Firebase.initializeApp();
@@ -65,7 +72,7 @@ void main() async {
   final isLoggedIn = token != null && token.isNotEmpty;
 
   runApp(
-    UncontrolledProviderScope(
+    riverpod.UncontrolledProviderScope(
       container: container,
       child: MultiProvider(
         providers: [
@@ -199,6 +206,16 @@ class VahanGoApp extends StatelessWidget {
           builder: (BuildContext context, GoRouterState state) =>
               const RateReviewDriverScreen(),
         ),
+        GoRoute(
+          path: '/add-money',
+          builder: (BuildContext context, GoRouterState state) =>
+              const AddMoneyScreen(),
+        ),
+        GoRoute(
+          path: '/payment-success',
+          builder: (BuildContext context, GoRouterState state) =>
+              const PaymentSuccessScreen(),
+        ),
       ],
     );
 
@@ -207,6 +224,22 @@ class VahanGoApp extends StatelessWidget {
         child: MaterialApp.router(
           title: 'VahanGo',
           debugShowCheckedModeBanner: false,
+          builder: (context, child) {
+            return riverpod.Consumer(
+              builder: (context, ref, _) {
+                 final rideState = ref.watch(rideNotifierProvider);
+                 return Stack(
+                   children: [
+                     if (child != null) child,
+                     if (rideState.isSyncing) const SyncOverlay(),
+                     if (rideState.showCancelledOverlay) const CancelledOverlay(),
+                     if (rideState.status == RideStatus.paymentPending)
+                       const Positioned(top: 0, left: 0, right: 0, child: PaymentPendingBanner()),
+                   ]
+                 );
+              }
+            );
+          },
           theme: ThemeData(
             useMaterial3: true,
             colorScheme: ColorScheme.fromSeed(

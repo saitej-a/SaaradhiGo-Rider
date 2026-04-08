@@ -246,7 +246,7 @@ class _WalletBalanceCard extends StatelessWidget {
                   icon: Icons.add_rounded,
                   label: 'Add Money',
                   onTap: () {
-                    // TODO: Implement Add Money logic
+                    context.push('/add-money');
                   },
                 ),
               ),
@@ -332,6 +332,14 @@ class _WalletTxnCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final dateStr = DateFormat('MMM dd, yyyy \u2022 hh:mm a').format(transaction.dateTime);
     
+    Color getStatusColor() {
+      final s = transaction.status.toLowerCase();
+      if (s == 'success' || s == 'completed') return const Color(0xFF10B981); // Green
+      if (s == 'failed') return const Color(0xFFEF4444); // Red
+      if (s == 'pending') return const Color(0xFFF59E0B); // Orange
+      return const Color(0xFF94A3B8); // Default
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -370,18 +378,44 @@ class _WalletTxnCard extends StatelessWidget {
               border: Border.all(color: const Color(0x0DFFFFFF)),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        transaction.title,
-                        style: GoogleFonts.inter(
-                          color: const Color(0xFFF8FAFC),
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              transaction.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFFF8FAFC),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: getStatusColor().withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(100),
+                              border: Border.all(color: getStatusColor().withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              transaction.status.toUpperCase(),
+                              style: GoogleFonts.inter(
+                                color: getStatusColor(),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -395,6 +429,7 @@ class _WalletTxnCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                const SizedBox(width: 16),
                 Text(
                   '${transaction.isCredit ? '+' : '-'}\u20B9${transaction.amount}',
                   style: GoogleFonts.inter(
