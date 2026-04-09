@@ -125,9 +125,17 @@ class RideService {
           'trip_id': tripId,
         }),
       );
-
+      print(response.body);
       if (response.statusCode == 201 || response.statusCode == 200) {
         return jsonDecode(response.body);
+      }
+      
+      try {
+        final errorData = jsonDecode(response.body);
+        debugPrint('Create Trip Payment Order API Error: ${response.statusCode} - $errorData');
+        return errorData; // Return error data so UI can show message
+      } catch (_) {
+        debugPrint('Create Trip Payment Order Error: ${response.statusCode} - ${response.body}');
       }
       return null;
     } catch (e) {

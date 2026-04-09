@@ -100,8 +100,10 @@ class MapProvider extends ChangeNotifier {
   bool get isRequestingRide => container?.read(rideNotifierProvider).status == RideStatus.searchingDriver;
   dynamic get rideRequestResponse => container?.read(rideNotifierProvider).rawResponse;
   LatLng? get driverLocation => container?.read(rideNotifierProvider).driverLocation;
+  String? get tripId => container?.read(rideNotifierProvider).tripId;
   bool get isDriverArriving => container?.read(rideNotifierProvider).status == RideStatus.driverArrived || container?.read(rideNotifierProvider).status == RideStatus.driverAccepted;
-  String get selectedPaymentMethod => 'cash'; // Extracted purely for syntax validation, though you'd normally manage this properly
+  String _selectedPaymentMethod = 'cash';
+  String get selectedPaymentMethod => _selectedPaymentMethod;
   
   bool get isTripInProgress {
     final status = container?.read(rideNotifierProvider).status;
@@ -109,8 +111,13 @@ class MapProvider extends ChangeNotifier {
   }
 
   void setPaymentMethod(String method) {
-    // simplified
-    notifyListeners();
+    if (_selectedPaymentMethod != method) {
+      _selectedPaymentMethod = method;
+      notifyListeners();
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setString('preferred_payment_method', method);
+      });
+    }
   }
 
   void setPrecisePickupLocation(LatLng location) {
@@ -165,6 +172,11 @@ class MapProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
+
+      final savedPaymentMethod = prefs.getString('preferred_payment_method');
+      if (savedPaymentMethod != null) {
+        _selectedPaymentMethod = savedPaymentMethod;
+      }
 
       if (token != null) {
         final results = await Future.wait([

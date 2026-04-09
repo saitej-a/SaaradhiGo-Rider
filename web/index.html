@@ -32,18 +32,48 @@
 
   <title>vahango</title>
   <link rel="manifest" href="manifest.json">
-  <!-- Removed Google Maps script -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script>
+    function launchRazorpay(options, successCallback, errorCallback) {
+      // Normalize options
+      var rzpOptions = {
+        "key": options.key,
+        "amount": parseInt(options.amount), 
+        "currency": options.currency || "INR",
+        "name": options.name,
+        "description": options.description,
+        "order_id": options.order_id,
+        "prefill": options.prefill || {},
+        "notes": options.notes || {},
+        "theme": options.theme || { "color": "#EEBD2B" },
+        "handler": function (response) {
+          successCallback(response.razorpay_payment_id, response.razorpay_order_id, response.razorpay_signature);
+        },
+        "modal": {
+          "ondismiss": function() {
+            errorCallback("dismissed", "Payment cancelled by user");
+          }
+        }
+      };
+
+      try {
+        var rzp = new Razorpay(rzpOptions);
+        rzp.on('payment.failed', function (response){
+          errorCallback(response.error.code, response.error.description);
+        });
+        rzp.open();
+      } catch (e) {
+        errorCallback("error", e.message || "Failed to launch Razorpay");
+      }
+    }
+
+    function isRazorpayLoaded() {
+      return typeof Razorpay !== 'undefined';
+    }
+  </script>
 </head>
 
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
 

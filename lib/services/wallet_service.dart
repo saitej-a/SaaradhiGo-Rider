@@ -86,6 +86,14 @@ class WalletService {
       if (response.statusCode == 201 || response.statusCode == 200) {
         return jsonDecode(response.body);
       }
+      
+      try {
+        final errorData = jsonDecode(response.body);
+        debugPrint('Create TopUp Order API Error: ${response.statusCode} - $errorData');
+        return errorData; // Return error data so UI can show message
+      } catch (_) {
+        debugPrint('Create TopUp Order Error: ${response.statusCode} - ${response.body}');
+      }
       return null;
     } catch (e) {
       debugPrint('Create TopUp Order error: $e');

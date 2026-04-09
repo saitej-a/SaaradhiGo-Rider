@@ -52,9 +52,17 @@ class _AddMoneyScreenState extends State<AddMoneyScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final success = await context.read<WalletProvider>().topUp(amount);
+      final provider = context.read<WalletProvider>();
+      final success = await provider.topUp(amount, context);
       if (success == true && mounted) {
-        context.push('/payment-success'); // Navigates to success screen
+        context.push('/payment-success');
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(provider.errorMessage ?? 'Payment failed. Please try again.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
     } finally {
       if (mounted) {

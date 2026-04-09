@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -11,11 +12,12 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:razorpay_flutter/razorpay_flutter.dart';
 import '../../services/ride_service.dart';
+import '../../services/payment_service.dart';
 import '../../core/app_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:provider/provider.dart' as p;
+import '../../state/ride_notifier.dart';
 
 class SetDestinationScreen extends StatelessWidget {
   const SetDestinationScreen({super.key});
@@ -80,7 +82,7 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> {
 
   void _handleStateChange() {
     if (!mounted || _isNavigated) return;
-    
+
     final mapProvider = _mapProvider;
     if (mapProvider == null) return;
 
@@ -89,20 +91,23 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> {
       final response = mapProvider.rideRequestResponse;
       final status = response['status'];
       final type = response['type'];
-      
+
       // Navigate if ride is accepted
-      if (type == 'ride.accepted' || type == 'ride_accepted' || 
+      if (type == 'ride.accepted' ||
+          type == 'ride_accepted' ||
           (type == 'trip_update' && status == 'accept')) {
         _isNavigated = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && context.mounted) {
             String currentRoute = '';
             try {
-              currentRoute = GoRouter.of(context).routerDelegate.currentConfiguration.last.matchedLocation;
+              currentRoute = GoRouter.of(
+                context,
+              ).routerDelegate.currentConfiguration.last.matchedLocation;
             } catch (e) {
-               debugPrint('Guard route check failed: $e');
+              debugPrint('Guard route check failed: $e');
             }
-            
+
             if (currentRoute != '/driver-found') {
               context.pushReplacement('/driver-found');
             }
@@ -139,7 +144,9 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> {
                   value: value,
                   minHeight: 10,
                   backgroundColor: Colors.white.withOpacity(0.1),
-                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFEEBD2B)),
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    Color(0xFFEEBD2B),
+                  ),
                 ),
               ),
             ),
@@ -149,8 +156,13 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.white70,
                 side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 32,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               child: const Text('Cancel Search'),
             ),
@@ -162,23 +174,39 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> {
 
   Future<bool> _showCancelConfirmation(BuildContext context) async {
     return await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1C18),
-        title: Text('Cancel Search?', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Text('Are you sure you want to cancel your ride request?', style: GoogleFonts.inter(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Wait', style: GoogleFonts.inter(color: const Color(0xFFEEBD2B))),
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF1E1C18),
+            title: Text(
+              'Cancel Search?',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            content: Text(
+              'Are you sure you want to cancel your ride request?',
+              style: GoogleFonts.inter(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  'Wait',
+                  style: GoogleFonts.inter(color: const Color(0xFFEEBD2B)),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(
+                  'Cancel Anyway',
+                  style: GoogleFonts.inter(color: Colors.redAccent),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Cancel Anyway', style: GoogleFonts.inter(color: Colors.redAccent)),
-          ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 }
 
@@ -213,15 +241,15 @@ class _DriverFoundScreenState extends State<DriverFoundScreen> {
 
   void _handleStateChange() {
     if (!mounted || _isNavigated) return;
-    
+
     final mapProvider = _mapProvider;
     if (mapProvider == null) return;
-    
+
     final response = mapProvider.rideRequestResponse;
-    
+
     if (response != null) {
       final status = response['status'];
-      
+
       if (status == 'start' || status == 'active') {
         _isNavigated = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -248,23 +276,28 @@ class _DriverFoundScreenState extends State<DriverFoundScreen> {
     return Consumer<MapProvider>(
       builder: (context, mapProvider, child) {
         final rideData = mapProvider.rideRequestResponse;
-        
+
         // Extracting data with fallbacks
         final driverInfo = rideData?['driver_info'] as Map<String, dynamic>?;
-        final driverName = driverInfo?['name'] ?? rideData?['driver_name'] ?? 'Searching...';
+        final driverName =
+            driverInfo?['name'] ?? rideData?['driver_name'] ?? 'Searching...';
         final driverStars = driverInfo?['stars']?.toString() ?? '5.0';
         final driverPhoto = driverInfo?['photo_url'];
-        
+
         final vehicleData = rideData?['vehicle_info'] as Map<String, dynamic>?;
         final vehicleBrand = vehicleData?['brand'] ?? '';
         final vehicleModel = vehicleData?['model'] ?? '';
         final vehicleColor = vehicleData?['color'] ?? '';
-        final vehicleNumber = vehicleData?['vehicle_number'] ?? rideData?['vehicle_number'] ?? '...';
-        
-        final vehicleSummary = (vehicleBrand.isNotEmpty && vehicleModel.isNotEmpty) 
-            ? '$vehicleColor $vehicleBrand $vehicleModel' 
+        final vehicleNumber =
+            vehicleData?['vehicle_number'] ??
+            rideData?['vehicle_number'] ??
+            '...';
+
+        final vehicleSummary =
+            (vehicleBrand.isNotEmpty && vehicleModel.isNotEmpty)
+            ? '$vehicleColor $vehicleBrand $vehicleModel'
             : rideData?['vehicle_info_summary'] ?? 'Vehicle Details';
-            
+
         final otp = rideData?['otp'] ?? '----';
 
         return PopScope(
@@ -286,198 +319,227 @@ class _DriverFoundScreenState extends State<DriverFoundScreen> {
               }
             },
             bottom: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Driver & Vehicle Header
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 28,
-                      backgroundColor: const Color(0xFFEEBD2B).withOpacity(0.2),
-                      backgroundImage: driverPhoto != null ? NetworkImage(driverPhoto) : null,
-                      child: driverPhoto == null 
-                          ? const Icon(Icons.person, color: Color(0xFFEEBD2B), size: 32)
-                          : null,
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            driverName,
-                            style: GoogleFonts.inter(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              const Icon(Icons.star, color: Color(0xFFEEBD2B), size: 14),
-                              const SizedBox(width: 4),
-                              Text(
-                                '$driverStars • Professional Driver',
-                                style: GoogleFonts.inter(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                ),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Driver & Vehicle Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 28,
+                        backgroundColor: const Color(
+                          0xFFEEBD2B,
+                        ).withOpacity(0.2),
+                        backgroundImage: driverPhoto != null
+                            ? NetworkImage(driverPhoto)
+                            : null,
+                        child: driverPhoto == null
+                            ? const Icon(
+                                Icons.person,
+                                color: Color(0xFFEEBD2B),
+                                size: 32,
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              driverName,
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
                               ),
-                            ],
-                          ),
-                        ],
+                            ),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.star,
+                                  color: Color(0xFFEEBD2B),
+                                  size: 14,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$driverStars • Professional Driver',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    Row(
-                      children: [
-                        _ActionButton(icon: Icons.chat_bubble_outline, onTap: () {}),
-                        const SizedBox(width: 12),
-                        _ActionButton(icon: Icons.phone_outlined, onTap: () {}),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Vehicle Detail Card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.directions_car_filled_outlined, color: Color(0xFFEEBD2B), size: 32),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Row(
                         children: [
-                          Text(
-                            vehicleSummary,
-                            style: GoogleFonts.inter(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
+                          _ActionButton(
+                            icon: Icons.chat_bubble_outline,
+                            onTap: () {},
                           ),
-                          Text(
-                            vehicleNumber.toUpperCase(),
-                            style: GoogleFonts.inter(
-                              color: const Color(0xFFEEBD2B),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                            ),
+                          const SizedBox(width: 12),
+                          _ActionButton(
+                            icon: Icons.phone_outlined,
+                            onTap: () {},
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 20),
-              
-              // OTP Section
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      const Color(0xFFEEBD2B).withOpacity(0.15),
-                      const Color(0xFFEEBD2B).withOpacity(0.05),
                     ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFEEBD2B).withOpacity(0.3)),
                 ),
-                child: Column(
-                  children: [
-                    Text(
-                      'PIN TO START THE TRIP',
+
+                const SizedBox(height: 16),
+
+                // Vehicle Detail Card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.directions_car_filled_outlined,
+                        color: Color(0xFFEEBD2B),
+                        size: 32,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              vehicleSummary,
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              vehicleNumber.toUpperCase(),
+                              style: GoogleFonts.inter(
+                                color: const Color(0xFFEEBD2B),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // OTP Section
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 20,
+                    horizontal: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFFEEBD2B).withOpacity(0.15),
+                        const Color(0xFFEEBD2B).withOpacity(0.05),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: const Color(0xFFEEBD2B).withOpacity(0.3),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'PIN TO START THE TRIP',
+                        style: GoogleFonts.inter(
+                          color: const Color(0xFFEEBD2B),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 2.0,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        otp.toString(),
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 36,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Share this PIN with your driver only',
+                        style: GoogleFonts.inter(
+                          color: Colors.white38,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Primary Action
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: () => context.push('/tracking'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEEBD2B),
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      'LIVE TRACKING',
                       style: GoogleFonts.inter(
-                        color: const Color(0xFFEEBD2B),
-                        fontSize: 11,
+                        fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 2.0,
+                        letterSpacing: 1.0,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      otp.toString(),
+                  ),
+                ),
+
+                Center(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    child: Text(
+                      'Cancel Ride',
                       style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 36,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 12,
+                        color: Colors.redAccent.withOpacity(0.8),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Share this PIN with your driver only',
-                      style: GoogleFonts.inter(
-                        color: Colors.white38,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Primary Action
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: () => context.push('/tracking'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEEBD2B),
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    'LIVE TRACKING',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.0,
-                    ),
                   ),
                 ),
-              ),
-              
-              Center(
-                child: TextButton(
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  child: Text(
-                    'Cancel Ride',
-                    style: GoogleFonts.inter(
-                      color: Colors.redAccent.withOpacity(0.8),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      );
-    },
+        );
+      },
     );
   }
 
@@ -488,16 +550,31 @@ class _DriverFoundScreenState extends State<DriverFoundScreen> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1C18),
-        title: Text('Ongoing Ride', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Text('You have an active ride request. Are you sure you want to cancel?', style: GoogleFonts.inter(color: Colors.white70)),
+        title: Text(
+          'Ongoing Ride',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'You have an active ride request. Are you sure you want to cancel?',
+          style: GoogleFonts.inter(color: Colors.white70),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Wait', style: GoogleFonts.inter(color: const Color(0xFFEEBD2B))),
+            child: Text(
+              'Wait',
+              style: GoogleFonts.inter(color: const Color(0xFFEEBD2B)),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Cancel Anyway', style: GoogleFonts.inter(color: Colors.redAccent)),
+            child: Text(
+              'Cancel Anyway',
+              style: GoogleFonts.inter(color: Colors.redAccent),
+            ),
           ),
         ],
       ),
@@ -508,10 +585,10 @@ class _DriverFoundScreenState extends State<DriverFoundScreen> {
   void _showCancelDialog(BuildContext context) {
     // This is no longer used individually, but kept if needed for specific flows
     _showCancelConfirmation(context).then((shouldCancel) {
-       if (shouldCancel && context.mounted) {
-         context.read<MapProvider>().cancelRideRequest();
-         context.pop();
-       }
+      if (shouldCancel && context.mounted) {
+        context.read<MapProvider>().cancelRideRequest();
+        context.pop();
+      }
     });
   }
 }
@@ -569,10 +646,10 @@ class _FullMapTrackingScreenState extends State<FullMapTrackingScreen> {
 
   void _handleStateChange() {
     if (!mounted || _isNavigated) return;
-    
+
     final mapProvider = _mapProvider;
     if (mapProvider == null) return;
-    
+
     final response = mapProvider.rideRequestResponse;
 
     if (response != null) {
@@ -614,11 +691,19 @@ class _FullMapTrackingScreenState extends State<FullMapTrackingScreen> {
                   children: [
                     Text(
                       mapProvider.duration ?? '-- min',
-                      style: GoogleFonts.inter(fontSize: 32, fontWeight: FontWeight.w800, color: Colors.white),
+                      style: GoogleFonts.inter(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
                     ),
                     Text(
-                      mapProvider.distance ?? '-- km', 
-                      style: GoogleFonts.inter(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500)
+                      mapProvider.distance ?? '-- km',
+                      style: GoogleFonts.inter(
+                        color: Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ],
                 ),
@@ -629,17 +714,44 @@ class _FullMapTrackingScreenState extends State<FullMapTrackingScreen> {
                     context: context,
                     builder: (context) => AlertDialog(
                       backgroundColor: const Color(0xFF1E1C18),
-                      title: const Text('SOS Emergency', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      content: const Text('Are you in danger? This will alert the nearest authorities and our support team.', style: TextStyle(color: Colors.white70)),
+                      title: const Text(
+                        'SOS Emergency',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      content: const Text(
+                        'Are you in danger? This will alert the nearest authorities and our support team.',
+                        style: TextStyle(color: Colors.white70),
+                      ),
                       actions: [
-                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('I\'m Safe', style: TextStyle(color: Colors.white54))),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text(
+                            'I\'m Safe',
+                            style: TextStyle(color: Colors.white54),
+                          ),
+                        ),
                         ElevatedButton(
                           onPressed: () {
-                             Navigator.pop(context);
-                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.red, content: Text('Emergency Alert Sent! Support is on the way.')));
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                backgroundColor: Colors.red,
+                                content: Text(
+                                  'Emergency Alert Sent! Support is on the way.',
+                                ),
+                              ),
+                            );
                           },
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                          child: const Text('YES, CALL FOR HELP', style: TextStyle(color: Colors.white)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                          ),
+                          child: const Text(
+                            'YES, CALL FOR HELP',
+                            style: TextStyle(color: Colors.white),
+                          ),
                         ),
                       ],
                     ),
@@ -652,24 +764,32 @@ class _FullMapTrackingScreenState extends State<FullMapTrackingScreen> {
                     color: Colors.red.withOpacity(0.9),
                     shape: BoxShape.circle,
                     boxShadow: [
-                      BoxShadow(color: Colors.red.withOpacity(0.4), blurRadius: 12, spreadRadius: 2),
+                      BoxShadow(
+                        color: Colors.red.withOpacity(0.4),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                      ),
                     ],
                   ),
                   alignment: Alignment.center,
                   child: const Text(
                     'SOS',
-                    style: TextStyle(fontWeight: FontWeight.w900, color: Colors.white, fontSize: 14),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
-          action: mapProvider.rideRequestResponse?['status'] == 'complete' 
-            ? ElevatedButton(
-                onPressed: () => context.push('/ride-summary'),
-                child: const Text('View Summary'),
-              )
-            : null,
+          action: mapProvider.rideRequestResponse?['status'] == 'complete'
+              ? ElevatedButton(
+                  onPressed: () => context.push('/ride-summary'),
+                  child: const Text('View Summary'),
+                )
+              : null,
         );
       },
     );
@@ -680,53 +800,29 @@ class RidePaymentSummaryScreen extends StatefulWidget {
   const RidePaymentSummaryScreen({super.key});
 
   @override
-  State<RidePaymentSummaryScreen> createState() => _RidePaymentSummaryScreenState();
+  State<RidePaymentSummaryScreen> createState() =>
+      _RidePaymentSummaryScreenState();
 }
 
 class _RidePaymentSummaryScreenState extends State<RidePaymentSummaryScreen> {
   String _selectedPaymentMethod = 'wallet';
-  late Razorpay _razorpay;
-  Completer<PaymentSuccessResponse?>? _paymentCompleter;
+  final PaymentService _paymentService = PaymentService();
   final RideService _rideService = RideService();
   bool _isProcessing = false;
 
   @override
   void initState() {
     super.initState();
-    _razorpay = Razorpay();
-    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
-    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
-    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<WalletProvider>().refreshWallet();
     });
   }
 
-  @override
-  void dispose() {
-    _razorpay.clear();
-    super.dispose();
-  }
-
-  void _handlePaymentSuccess(PaymentSuccessResponse response) {
-    if (_paymentCompleter != null && !_paymentCompleter!.isCompleted) {
-      _paymentCompleter!.complete(response);
-    }
-  }
-
-  void _handlePaymentError(PaymentFailureResponse response) {
-    if (_paymentCompleter != null && !_paymentCompleter!.isCompleted) {
-      _paymentCompleter!.complete(null);
-    }
-  }
-
-  void _handleExternalWallet(ExternalWalletResponse response) {
-    if (_paymentCompleter != null && !_paymentCompleter!.isCompleted) {
-       _paymentCompleter!.complete(null);
-    }
-  }
-
-  void _processPayment(double fare, WalletProvider walletProvider, dynamic rideData) async {
+  void _processPayment(
+    double fare,
+    WalletProvider walletProvider,
+    dynamic rideData,
+  ) async {
     if (_selectedPaymentMethod == 'wallet') {
       if (walletProvider.balance < fare) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -737,61 +833,146 @@ class _RidePaymentSummaryScreenState extends State<RidePaymentSummaryScreen> {
         );
       } else {
         // Backend handles wallet deduction when trip ends
+        final mapProvider = p.Provider.of<MapProvider>(context, listen: false);
+        mapProvider.cancelRideRequest();
         context.push('/rate-driver');
       }
     } else {
       setState(() => _isProcessing = true);
       try {
         final prefs = await SharedPreferences.getInstance();
+        if (!mounted) return;
         final token = prefs.getString('access_token');
         if (token == null) return;
-        
-        final tripIdStr = rideData?['trip_id'] ?? rideData?['id']?.toString() ?? '101'; // Defaulting to 101 for safety if trip_id is missing from provider
-        final tripId = int.tryParse(tripIdStr.toString()) ?? 101;
 
-        final orderData = await _rideService.createTripPaymentOrder(token, tripId);
-        if (orderData == null || orderData['status'] != 'success') {
+        final tripIdStr =
+            context.read<MapProvider>().tripId ??
+            rideData?['trip_id']?.toString() ??
+            rideData?['id']?.toString();
+
+        if (tripIdStr == null) {
           setState(() => _isProcessing = false);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to initiate payment. Please try again.')),
+            const SnackBar(
+              content: Text('Error: No active trip ID found. Please refresh.'),
+            ),
           );
           return;
         }
 
-        final orderId = orderData['data']['razorpay_order_id'];
-        
-        _paymentCompleter = Completer<PaymentSuccessResponse?>();
-        var options = {
-          'key': AppConfig.razorpayKey,
-          'amount': (fare * 100).toInt(),
-          'name': 'SaaradhiGo',
-          'description': 'Payment for Trip #$tripId',
-          'order_id': orderId,
-          'prefill': {
-            'contact': '9876543210',
-            'email': 'rider@saaradhigo.com'
-          }
+        final tripId = int.tryParse(tripIdStr);
+        if (tripId == null) {
+          setState(() => _isProcessing = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Error: Invalid Trip ID format.')),
+          );
+          return;
+        }
+
+        final orderData = await _rideService.createTripPaymentOrder(
+          token,
+          tripId,
+        );
+        if (!mounted) return;
+
+        // Detailed logging for debugging
+        debugPrint(
+          'RidePaymentSummaryScreen: Order Data: ${jsonEncode(orderData)}',
+        );
+
+        // Extract order ID with robust fallback paths
+        final orderId =
+            orderData?['razorpay_order_id']?.toString() ??
+            orderData?['id']?.toString() ??
+            orderData?['data']?['razorpay_order_id']?.toString() ??
+            orderData?['data']?['id']?.toString();
+
+        if (orderId == null || orderId.isEmpty) {
+          setState(() => _isProcessing = false);
+
+          final backendError = orderData?['error'];
+          final errorMessage =
+              (backendError != null && backendError['message'] != null)
+              ? backendError['message']
+              : (orderData?['message'] ??
+                    'Failed to initiate payment. Please try again.');
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          return;
+        }
+
+        // Use server-provided prefill if available (handle data wrapper)
+        final serverPrefill =
+            (orderData?['data']?['prefill'] ?? orderData?['prefill'])
+                as Map<String, dynamic>?;
+        final prefill = {
+          'name': serverPrefill?['name']?.toString() ?? 'Rider',
+          'contact': serverPrefill?['contact']?.toString() ?? '9876543210',
+          'email':
+              serverPrefill?['email']?.toString() ?? 'rider@saaradhigo.com',
         };
 
-        _razorpay.open(options);
-        final successResponse = await _paymentCompleter!.future;
-        
-        if (successResponse != null && successResponse.paymentId != null && successResponse.signature != null) {
+        // Extract description with data wrapper fallback
+        final description =
+            orderData?['data']?['description']?.toString() ??
+            orderData?['description']?.toString() ??
+            'Payment for Trip #$tripId';
+
+        debugPrint(
+          'RidePaymentSummaryScreen: Initiating payment for Order: $orderId',
+        );
+
+        final successResponse = await _paymentService.startPayment(
+          amount: fare,
+          name: 'SaaradhiGo',
+          description: description,
+          orderId: orderId,
+          prefill: prefill,
+          context: context,
+        );
+
+        if (successResponse != null &&
+            successResponse.paymentId != null &&
+            successResponse.signature != null) {
           final verifyResult = await _rideService.verifyTripPayment(
-              token, orderId, successResponse.paymentId!, successResponse.signature!);
-              
-          if (verifyResult != null && verifyResult['status'] == 'success') {
-             if (mounted) context.push('/rate-driver');
+            token,
+            orderId,
+            successResponse.paymentId!,
+            successResponse.signature!,
+          );
+
+          if (verifyResult != null &&
+              (verifyResult['status'] == 'success' ||
+                  verifyResult['status'] == 'paid')) {
+            final mapProvider = p.Provider.of<MapProvider>(
+              context,
+              listen: false,
+            );
+            mapProvider.cancelRideRequest();
+            if (mounted) context.push('/rate-driver');
           } else {
-             if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment verification failed.')));
+            if (mounted)
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Payment verification failed.')),
+              );
           }
-        } else {
-           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment cancelled.')));
         }
       } catch (e) {
-         debugPrint(e.toString());
+        debugPrint(e.toString());
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Payment initiation failed: ${e.toString()}'),
+            ),
+          );
+        }
       } finally {
-         if (mounted) setState(() => _isProcessing = false);
+        if (mounted) setState(() => _isProcessing = false);
       }
     }
   }
@@ -801,7 +982,8 @@ class _RidePaymentSummaryScreenState extends State<RidePaymentSummaryScreen> {
     return Consumer2<MapProvider, WalletProvider>(
       builder: (context, mapProvider, walletProvider, child) {
         final rideData = mapProvider.rideRequestResponse;
-        final totalFareStr = rideData?['total_fare'] ?? rideData?['estimated_fare'] ?? '0.00';
+        final totalFareStr =
+            rideData?['total_fare'] ?? rideData?['estimated_fare'] ?? '0.00';
         final totalFare = double.tryParse(totalFareStr.toString()) ?? 0.0;
         final currency = rideData?['currency'] ?? '₹';
 
@@ -811,7 +993,11 @@ class _RidePaymentSummaryScreenState extends State<RidePaymentSummaryScreen> {
             backgroundColor: Colors.transparent,
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+              icon: const Icon(
+                Icons.arrow_back_ios_new,
+                color: Colors.white,
+                size: 20,
+              ),
               onPressed: () => context.pop(),
             ),
             title: Text(
@@ -858,15 +1044,17 @@ class _RidePaymentSummaryScreenState extends State<RidePaymentSummaryScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                
+
                 // Payment Options List
                 _buildPaymentOption(
                   id: 'wallet',
                   title: 'Pay from Wallet',
-                  subtitle: 'Current Balance: ₹${walletProvider.balance.toStringAsFixed(2)}',
+                  subtitle:
+                      'Current Balance: ₹${walletProvider.balance.toStringAsFixed(2)}',
                   icon: Icons.account_balance_wallet,
                   isSelected: _selectedPaymentMethod == 'wallet',
-                  onTap: () => setState(() => _selectedPaymentMethod = 'wallet'),
+                  onTap: () =>
+                      setState(() => _selectedPaymentMethod = 'wallet'),
                 ),
                 const SizedBox(height: 12),
                 _buildPaymentOption(
@@ -874,31 +1062,47 @@ class _RidePaymentSummaryScreenState extends State<RidePaymentSummaryScreen> {
                   title: 'Pay via UPI/Card',
                   icon: Icons.credit_card,
                   isSelected: _selectedPaymentMethod == 'upi_card',
-                  onTap: () => setState(() => _selectedPaymentMethod = 'upi_card'),
+                  onTap: () =>
+                      setState(() => _selectedPaymentMethod = 'upi_card'),
                 ),
-                
+
                 const SizedBox(height: 48),
-                
+
                 SizedBox(
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: _isProcessing ? null : () => _processPayment(totalFare, walletProvider, rideData),
+                    onPressed: _isProcessing
+                        ? null
+                        : () => _processPayment(
+                            totalFare,
+                            walletProvider,
+                            rideData,
+                          ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFEEBD2B),
                       foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       elevation: 0,
                     ),
                     child: _isProcessing
-                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-                      : Text(
-                          'Confirm & Pay',
-                          style: GoogleFonts.inter(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.black,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            'Confirm & Pay',
+                            style: GoogleFonts.inter(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -939,16 +1143,24 @@ class _RidePaymentSummaryScreenState extends State<RidePaymentSummaryScreen> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEEBD2B).withValues(alpha: 0.1) : const Color(0xFF24211C),
+          color: isSelected
+              ? const Color(0xFFEEBD2B).withValues(alpha: 0.1)
+              : const Color(0xFF24211C),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? const Color(0xFFEEBD2B) : const Color(0x1AFFFFFF),
+            color: isSelected
+                ? const Color(0xFFEEBD2B)
+                : const Color(0x1AFFFFFF),
             width: isSelected ? 2 : 1,
           ),
         ),
         child: Row(
           children: [
-            Icon(icon, color: isSelected ? const Color(0xFFEEBD2B) : Colors.white70, size: 28),
+            Icon(
+              icon,
+              color: isSelected ? const Color(0xFFEEBD2B) : Colors.white70,
+              size: 28,
+            ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -1082,7 +1294,8 @@ class _DarkMapScaffold extends StatefulWidget {
   State<_DarkMapScaffold> createState() => _DarkMapScaffoldState();
 }
 
-class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderStateMixin {
+class _DarkMapScaffoldState extends State<_DarkMapScaffold>
+    with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   LatLng? _animatedDriverLocation;
   MapProvider? _mapProvider;
@@ -1107,7 +1320,8 @@ class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderS
     if (mapProvider.driverLocation != null && _animatedDriverLocation == null) {
       setState(() => _animatedDriverLocation = mapProvider.driverLocation);
       _fitDriverAndTarget();
-    } else if (mapProvider.driverLocation != null && _animatedDriverLocation != mapProvider.driverLocation) {
+    } else if (mapProvider.driverLocation != null &&
+        _animatedDriverLocation != mapProvider.driverLocation) {
       _animateMarker(mapProvider.driverLocation!);
       _fitDriverAndTarget(); // Re-fit as driver moves
     }
@@ -1117,7 +1331,7 @@ class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderS
     if (currentStatus != _lastStatus) {
       _lastStatus = currentStatus;
       _fitDriverAndTarget();
-      
+
       // Initialize arrival polyline if entering arrival phase
       if (currentStatus == 'accept' || currentStatus == 'arrive') {
         mapProvider.updateArrivingPolyline();
@@ -1129,13 +1343,15 @@ class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderS
     final mapProvider = _mapProvider;
     if (mapProvider == null || mapProvider.driverLocation == null) return;
 
-    final bool isInProgress = widget.forceInProgress || 
-                             mapProvider.rideRequestResponse?['status'] == 'start' || 
-                             mapProvider.rideRequestResponse?['status'] == 'active';
-    
-    final targetLocation = isInProgress 
-        ? mapProvider.dropLocation?.latLng 
-        : (mapProvider.precisePickupLocation ?? mapProvider.pickupLocation?.latLng);
+    final bool isInProgress =
+        widget.forceInProgress ||
+        mapProvider.rideRequestResponse?['status'] == 'start' ||
+        mapProvider.rideRequestResponse?['status'] == 'active';
+
+    final targetLocation = isInProgress
+        ? mapProvider.dropLocation?.latLng
+        : (mapProvider.precisePickupLocation ??
+              mapProvider.pickupLocation?.latLng);
 
     if (targetLocation == null) return;
 
@@ -1149,8 +1365,11 @@ class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderS
           _mapController.fitCamera(
             CameraFit.bounds(
               bounds: bounds,
-              padding: const EdgeInsets.symmetric(horizontal: 70, vertical: 180),
-            )
+              padding: const EdgeInsets.symmetric(
+                horizontal: 70,
+                vertical: 180,
+              ),
+            ),
           );
         } catch (e) {
           debugPrint('MapController not ready for fitCamera: $e');
@@ -1167,14 +1386,17 @@ class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderS
 
   void _animateMarker(LatLng target) {
     if (_animatedDriverLocation == null) return;
-    
+
     final start = _animatedDriverLocation!;
     final controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     );
 
-    final animation = CurvedAnimation(parent: controller, curve: Curves.easeInOut);
+    final animation = CurvedAnimation(
+      parent: controller,
+      curve: Curves.easeInOut,
+    );
 
     controller.addListener(() {
       if (!mounted) {
@@ -1184,7 +1406,8 @@ class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderS
       setState(() {
         _animatedDriverLocation = LatLng(
           start.latitude + (target.latitude - start.latitude) * animation.value,
-          start.longitude + (target.longitude - start.longitude) * animation.value,
+          start.longitude +
+              (target.longitude - start.longitude) * animation.value,
         );
       });
     });
@@ -1199,30 +1422,38 @@ class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderS
       body: Consumer<MapProvider>(
         builder: (context, mapProvider, child) {
           final List<Marker> markers = [];
-          
+
           // Pickup Marker
-          final bool isInProgress = widget.forceInProgress ||
-                                   mapProvider.rideRequestResponse?['status'] == 'start' || 
-                                   mapProvider.rideRequestResponse?['status'] == 'active';
-                                   
+          final bool isInProgress =
+              widget.forceInProgress ||
+              mapProvider.rideRequestResponse?['status'] == 'start' ||
+              mapProvider.rideRequestResponse?['status'] == 'active';
+
           if (mapProvider.pickupLocation != null && !isInProgress) {
             markers.add(
               Marker(
-                point: mapProvider.precisePickupLocation ?? mapProvider.pickupLocation!.latLng,
+                point:
+                    mapProvider.precisePickupLocation ??
+                    mapProvider.pickupLocation!.latLng,
                 width: 40,
                 height: 40,
                 child: SvgPicture.asset(
                   'assets/markers/pickup.svg',
                   width: 40,
                   height: 40,
-                  placeholderBuilder: (BuildContext context) => const Icon(Icons.location_on, color: Color(0xFFEEBD2B), size: 40),
+                  placeholderBuilder: (BuildContext context) => const Icon(
+                    Icons.location_on,
+                    color: Color(0xFFEEBD2B),
+                    size: 40,
+                  ),
                 ),
               ),
             );
           }
-          
+
           // Dropoff Marker (Destination)
-          if (mapProvider.dropLocation != null && (!mapProvider.isDriverArriving || isInProgress)) {
+          if (mapProvider.dropLocation != null &&
+              (!mapProvider.isDriverArriving || isInProgress)) {
             markers.add(
               Marker(
                 point: mapProvider.dropLocation!.latLng,
@@ -1232,21 +1463,30 @@ class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderS
                   'assets/markers/dropoff.svg',
                   width: 40,
                   height: 40,
-                  placeholderBuilder: (BuildContext context) => const Icon(Icons.location_on, color: Colors.blue, size: 40),
+                  placeholderBuilder: (BuildContext context) => const Icon(
+                    Icons.location_on,
+                    color: Colors.blue,
+                    size: 40,
+                  ),
                 ),
               ),
             );
           }
 
           // Driver Marker (Animated)
-          if (_animatedDriverLocation != null && mapProvider.rideRequestResponse != null) {
+          if (_animatedDriverLocation != null &&
+              mapProvider.rideRequestResponse != null) {
             markers.add(
               Marker(
                 point: _animatedDriverLocation!,
                 width: 45,
                 height: 45,
                 child: const SmoothAnimatedMarker(
-                  child: Icon(Icons.directions_car, color: Color(0xFFEEBD2B), size: 34),
+                  child: Icon(
+                    Icons.directions_car,
+                    color: Color(0xFFEEBD2B),
+                    size: 34,
+                  ),
                 ),
               ),
             );
@@ -1262,7 +1502,11 @@ class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderS
                   point: LatLng(lat.toDouble(), lng.toDouble()),
                   width: 30,
                   height: 30,
-                  child: const Icon(Icons.directions_car, color: Color(0xFFEEBD2B), size: 24),
+                  child: const Icon(
+                    Icons.directions_car,
+                    color: Color(0xFFEEBD2B),
+                    size: 24,
+                  ),
                 ),
               );
             }
@@ -1279,10 +1523,15 @@ class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderS
             );
           }
 
-          final initialCenter = mapProvider.dropLocation?.latLng ?? 
-                               mapProvider.pickupLocation?.latLng ?? 
-                               const LatLng(0, 0); 
-          final initialZoom = (mapProvider.dropLocation != null || mapProvider.pickupLocation != null) ? 14.0 : 2.0;
+          final initialCenter =
+              mapProvider.dropLocation?.latLng ??
+              mapProvider.pickupLocation?.latLng ??
+              const LatLng(0, 0);
+          final initialZoom =
+              (mapProvider.dropLocation != null ||
+                  mapProvider.pickupLocation != null)
+              ? 14.0
+              : 2.0;
 
           return Stack(
             children: [
@@ -1294,18 +1543,15 @@ class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderS
                 ),
                 children: [
                   TileLayer(
-                    urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                    urlTemplate:
+                        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
                     subdomains: const ['a', 'b', 'c', 'd'],
                     userAgentPackageName: 'com.saaradhigo.app',
                     retinaMode: RetinaMode.isHighDensity(context),
                     tileProvider: CancellableNetworkTileProvider(),
                   ),
-                  PolylineLayer(
-                    polylines: polylines,
-                  ),
-                  MarkerLayer(
-                    markers: markers,
-                  ),
+                  PolylineLayer(polylines: polylines),
+                  MarkerLayer(markers: markers),
                 ],
               ),
               SafeArea(
@@ -1343,7 +1589,9 @@ class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderS
                   width: double.infinity,
                   decoration: const BoxDecoration(
                     color: Color(0xFF1E1C18),
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(30),
+                    ),
                   ),
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -1359,7 +1607,10 @@ class _DarkMapScaffoldState extends State<_DarkMapScaffold> with TickerProviderS
                       ),
                       const SizedBox(height: 12),
                       widget.bottom,
-                      if (widget.action != null) ...[const SizedBox(height: 10), widget.action!],
+                      if (widget.action != null) ...[
+                        const SizedBox(height: 10),
+                        widget.action!,
+                      ],
                     ],
                   ),
                 ),
@@ -1691,7 +1942,8 @@ class _FareBreakdown extends StatelessWidget {
   Widget build(BuildContext context) {
     final fareBreakdown = rideData?['fare_breakdown'] as Map<String, dynamic>?;
     final currency = rideData?['currency'] ?? 'INR';
-    final totalFare = rideData?['total_fare'] ?? rideData?['estimated_fare'] ?? '0.00';
+    final totalFare =
+        rideData?['total_fare'] ?? rideData?['estimated_fare'] ?? '0.00';
 
     if (fareBreakdown == null) {
       return Padding(
@@ -1707,15 +1959,26 @@ class _FareBreakdown extends StatelessWidget {
           if (fareBreakdown['base_fare'] != null)
             _FareLine('Base Fare', '$currency ${fareBreakdown['base_fare']}'),
           if (fareBreakdown['distance_fare'] != null)
-            _FareLine('Distance Fare', '$currency ${fareBreakdown['distance_fare']}'),
+            _FareLine(
+              'Distance Fare',
+              '$currency ${fareBreakdown['distance_fare']}',
+            ),
           if (fareBreakdown['time_fare'] != null)
             _FareLine('Time Fare', '$currency ${fareBreakdown['time_fare']}'),
           if (fareBreakdown['waiting_fare'] != null)
-            _FareLine('Waiting Fare', '$currency ${fareBreakdown['waiting_fare']}'),
+            _FareLine(
+              'Waiting Fare',
+              '$currency ${fareBreakdown['waiting_fare']}',
+            ),
           if (fareBreakdown['taxes'] != null)
             _FareLine('Taxes & Fees', '$currency ${fareBreakdown['taxes']}'),
-          if (fareBreakdown['discount'] != null && fareBreakdown['discount'] > 0)
-            _FareLine('Promo Discount', '-$currency ${fareBreakdown['discount']}', color: const Color(0xFFEEBD2B)),
+          if (fareBreakdown['discount'] != null &&
+              fareBreakdown['discount'] > 0)
+            _FareLine(
+              'Promo Discount',
+              '-$currency ${fareBreakdown['discount']}',
+              color: const Color(0xFFEEBD2B),
+            ),
           const Divider(color: Colors.white24),
           _FareLine('Total', '$currency $totalFare', bold: true),
         ],
@@ -1765,7 +2028,8 @@ class SmoothAnimatedMarker extends StatefulWidget {
   State<SmoothAnimatedMarker> createState() => _SmoothAnimatedMarkerState();
 }
 
-class _SmoothAnimatedMarkerState extends State<SmoothAnimatedMarker> with SingleTickerProviderStateMixin {
+class _SmoothAnimatedMarkerState extends State<SmoothAnimatedMarker>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
@@ -1807,4 +2071,3 @@ class _SmoothAnimatedMarkerState extends State<SmoothAnimatedMarker> with Single
     );
   }
 }
-

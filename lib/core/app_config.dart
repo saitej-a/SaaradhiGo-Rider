@@ -21,5 +21,5 @@ class AppConfig {
   static String get googleMapsApiKey => dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
 
   // Razorpay
-  static String get razorpayKey => dotenv.env['RAZORPAY_KEY'] ?? 'rzp_test_fallback_key';
+  static String get razorpayKey => dotenv.env['RAZORPAY_KEY_ID'] ?? 'rzp_test_fallback_key';
 }
