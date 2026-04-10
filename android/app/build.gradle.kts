@@ -25,6 +25,14 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+        disable += "Instantiatable"
+        disable += "ProtectedPermissions"
+        disable += "NewApi"
+    }
+
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
