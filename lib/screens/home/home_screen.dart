@@ -11,6 +11,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/map_provider.dart';
 import '../../services/map_service.dart';
+import '../../screens/components/coming_soon_overlay.dart';
 import 'history_screen.dart';
 import 'wallet_screen.dart';
 
@@ -173,6 +174,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (currentRoute != '/home') return;
 
     final mapProvider = _mapProvider ?? context.read<MapProvider>();
+    
+    // Check for coming soon overlay
+    if (mapProvider.showComingSoonOverlay) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => const ComingSoonOverlay(),
+          ).then((_) {
+            // Dismiss the flag after dialog closes
+            mapProvider.dismissComingSoonOverlay();
+          });
+        }
+      });
+    }
+    
     if (mapProvider.isTripInProgress) {
         _checkAndRedirectActiveRide(isAutomatic: true);
     }
@@ -412,7 +429,7 @@ class _HomeTab extends StatelessWidget {
                 icon: Icons.bookmark,
                 title: 'Saved',
                 subtitle: fav.addressText,
-                onTap: () {
+                onTap: () async {
                   final provider = context.read<MapProvider>();
                   if (provider.isTripInProgress) {
                     onActiveRideTap();
@@ -420,11 +437,27 @@ class _HomeTab extends StatelessWidget {
                   }
                   // Navigate immediately, calculate route in background
                   context.push('/route-map');
-                  provider.prepareAndCalculateRoute(
-                    pickupName: pickupController.text.isNotEmpty ? pickupController.text : 'Current Location',
-                    presetPickup: currentPosition,
-                    dropPlaceId: fav.latitude != 0 ? '${fav.latitude},${fav.longitude}' : 'current',
-                  );
+                  try {
+                    await provider.prepareAndCalculateRoute(
+                      pickupName: pickupController.text.isNotEmpty ? pickupController.text : 'Current Location',
+                      presetPickup: currentPosition,
+                      dropPlaceId: fav.latitude != 0 ? '${fav.latitude},${fav.longitude}' : 'current',
+                    );
+                  } catch (e) {
+                    // Check if error is due to pickup location outside Hyderabad
+                    if (e.toString().contains('Pickup location outside Hyderabad')) {
+                      // Show ComingSoonOverlay
+                      if (context.mounted) {
+                        showDialog(
+                          context: context,
+                          builder: (context) => const ComingSoonOverlay(),
+                        );
+                      }
+                      return; // Don't proceed with route calculation
+                    }
+                    // Re-throw other errors
+                    rethrow;
+                  }
                 },
                 trailing: IconButton(
                   icon: const Icon(Icons.bookmark_remove, color: Colors.white38, size: 20),
@@ -441,7 +474,7 @@ class _HomeTab extends StatelessWidget {
                 icon: Icons.history,
                 title: 'Recent Trip',
                 subtitle: trip.destinationAddress,
-                onTap: () {
+                onTap: () async {
                   final provider = context.read<MapProvider>();
                   if (provider.isTripInProgress) {
                     onActiveRideTap();
@@ -450,11 +483,27 @@ class _HomeTab extends StatelessWidget {
                   // Navigate immediately, calculate route in background
                   context.push('/route-map');
                   if (trip.destinationLat != null && trip.destinationLng != null) {
-                    provider.prepareAndCalculateRoute(
-                      pickupName: pickupController.text.isNotEmpty ? pickupController.text : 'Current Location',
-                      presetPickup: currentPosition,
-                      dropPlaceId: '${trip.destinationLat},${trip.destinationLng}',
-                    );
+                    try {
+                      await provider.prepareAndCalculateRoute(
+                        pickupName: pickupController.text.isNotEmpty ? pickupController.text : 'Current Location',
+                        presetPickup: currentPosition,
+                        dropPlaceId: '${trip.destinationLat},${trip.destinationLng}',
+                      );
+                    } catch (e) {
+                      // Check if error is due to pickup location outside Hyderabad
+                      if (e.toString().contains('Pickup location outside Hyderabad')) {
+                        // Show ComingSoonOverlay
+                        if (context.mounted) {
+                          showDialog(
+                            context: context,
+                            builder: (context) => const ComingSoonOverlay(),
+                          );
+                        }
+                        return; // Don't proceed with route calculation
+                      }
+                      // Re-throw other errors
+                      rethrow;
+                    }
                   } else {
                     provider.fetchSuggestions(trip.destinationAddress);
                   }
@@ -1085,13 +1134,30 @@ class _LocationCardState extends State<_LocationCard> {
             context.push('/route-map');
           }
           
-          await provider.prepareAndCalculateRoute(
-            pickupName: widget.pickupController.text.isNotEmpty 
-                ? widget.pickupController.text 
-                : 'Current Location',
-            presetPickup: provider.pickupLocation?.latLng ?? widget.currentPosition,
-            dropPlaceId: suggestion.placeId,
-          );
+          try {
+            await provider.prepareAndCalculateRoute(
+              pickupName: widget.pickupController.text.isNotEmpty
+                  ? widget.pickupController.text
+                  : 'Current Location',
+              presetPickup: provider.pickupLocation?.latLng ?? widget.currentPosition,
+              dropPlaceId: suggestion.placeId,
+            );
+          } catch (e) {
+            // Check if error is due to pickup location outside Hyderabad
+            if (e.toString().contains('Pickup location outside Hyderabad')) {
+              // Show ComingSoonOverlay
+              if (mounted) {
+                showDialog(
+                  context: context,
+                  builder: (context) => const ComingSoonOverlay(),
+                );
+              }
+              _hideOverlay();
+              return; // Don't proceed with route calculation
+            }
+            // Re-throw other errors
+            rethrow;
+          }
         }
         
         _hideOverlay();

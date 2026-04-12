@@ -70,7 +70,7 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> {
       if (!mounted) return;
       _mapProvider = context.read<MapProvider>();
       _mapProvider?.addListener(_handleStateChange);
-      _mapProvider?.requestRide();
+      _mapProvider?.requestRide(context: context);
     });
   }
 

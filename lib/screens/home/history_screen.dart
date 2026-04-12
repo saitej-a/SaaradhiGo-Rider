@@ -28,7 +28,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Map<String, List<Trip>> _groupTripsByMonth(List<Trip> trips) {
     final Map<String, List<Trip>> grouped = {};
     for (final trip in trips) {
-      final monthYear = trip.createdAt != null 
+      final monthYear = trip.createdAt != null
           ? DateFormat('MMMM yyyy').format(trip.createdAt!)
           : 'RECENTLY';
       if (!grouped.containsKey(monthYear)) {
@@ -56,12 +56,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-                SliverToBoxAdapter(
-                  child: const _HistoryHeader(),
-                ),
-                SliverToBoxAdapter(
-                  child: const SizedBox(height: 24),
-                ),
+                SliverToBoxAdapter(child: const _HistoryHeader()),
+                SliverToBoxAdapter(child: const SizedBox(height: 24)),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: EdgeInsets.zero,
@@ -76,19 +72,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ),
                   ),
                 ),
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 24),
-                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
                 if (provider.isLoading && provider.trips.isEmpty)
                   _buildSkeletonSliver()
-                else if (provider.errorMessage != null && provider.trips.isEmpty)
+                else if (provider.errorMessage != null &&
+                    provider.trips.isEmpty)
                   SliverFillRemaining(
                     child: _buildErrorState(provider.errorMessage!),
                   )
                 else if (provider.trips.isEmpty)
-                  SliverFillRemaining(
-                    child: _buildEmptyState(),
-                  )
+                  SliverFillRemaining(child: _buildEmptyState())
                 else
                   ...List.generate(months.length, (index) {
                     final month = months[index];
@@ -99,7 +92,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         slivers: [
                           SliverToBoxAdapter(
                             child: Padding(
-                              padding: const EdgeInsets.only(bottom: 16, top: 8),
+                              padding: const EdgeInsets.only(
+                                bottom: 16,
+                                top: 8,
+                              ),
                               child: Text(
                                 month.toUpperCase(),
                                 style: GoogleFonts.inter(
@@ -112,15 +108,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             ),
                           ),
                           SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, tripIndex) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 16),
-                                  child: _HistoryRideCard(trip: trips[tripIndex]),
-                                );
-                              },
-                              childCount: trips.length,
-                            ),
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              tripIndex,
+                            ) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: _HistoryRideCard(trip: trips[tripIndex]),
+                              );
+                            }, childCount: trips.length),
                           ),
                         ],
                       ),
@@ -200,7 +196,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(color: const Color(0xFFE2E8F0), fontSize: 16),
+              style: GoogleFonts.inter(
+                color: const Color(0xFFE2E8F0),
+                fontSize: 16,
+              ),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
@@ -209,10 +208,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 backgroundColor: const Color(0xFFEEBD2B),
                 foregroundColor: Colors.black,
                 elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
-              child: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.bold)),
+              child: const Text(
+                'Try Again',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),
@@ -300,12 +307,29 @@ class _HistoryRideCard extends StatelessWidget {
 
   const _HistoryRideCard({required this.trip});
 
+  String _getVehicleDisplayName(String? type) {
+    switch (type) {
+      case 'bike':
+        return 'Bike';
+      case 'auto':
+        return 'Auto';
+      case 'car':
+        return 'Car';
+      case 'car_xl':
+        return 'Car XL';
+      case 'car_premium':
+        return 'Premium';
+      default:
+        return 'Car';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final dateStr = trip.createdAt != null 
+    final dateStr = trip.createdAt != null
         ? DateFormat('MMM dd, yyyy \u2022 hh:mm a').format(trip.createdAt!)
         : 'Recently';
-    
+
     final fare = trip.finalFare ?? trip.estimatedFare ?? '0.00';
 
     return Container(
@@ -332,7 +356,7 @@ class _HistoryRideCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    (trip.vehicleType ?? 'Premium Car'),
+                    _getVehicleDisplayName(trip.vehicleType),
                     style: GoogleFonts.inter(
                       color: const Color(0xFFEEBD2B),
                       fontSize: 16,
@@ -373,11 +397,18 @@ class _HistoryRideCard extends StatelessWidget {
                   onPressed: () {},
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFFF8D468),
-                    side: BorderSide(color: const Color(0xFF8B6508).withOpacity(0.4)),
+                    side: BorderSide(
+                      color: const Color(0xFF8B6508).withOpacity(0.4),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  child: const Text('Rate', style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Rate',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -389,9 +420,14 @@ class _HistoryRideCard extends StatelessWidget {
                     foregroundColor: const Color(0xFFF8D468),
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  child: const Text('Rebook', style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Rebook',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
@@ -417,9 +453,7 @@ class _TimelineRoute extends StatelessWidget {
             Container(
               width: 24,
               height: 24,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-              ),
+              decoration: const BoxDecoration(shape: BoxShape.circle),
               child: Center(
                 child: Container(
                   width: 8,
@@ -451,13 +485,14 @@ class _TimelineRoute extends StatelessWidget {
             SizedBox(
               width: 24,
               child: Column(
-                children: List.generate(3, (index) => 
-                  Container(
+                children: List.generate(
+                  3,
+                  (index) => Container(
                     margin: const EdgeInsets.symmetric(vertical: 2),
                     width: 2,
                     height: 4,
                     color: Colors.white.withOpacity(0.1),
-                  )
+                  ),
                 ),
               ),
             ),
