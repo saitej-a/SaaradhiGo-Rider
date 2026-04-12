@@ -36,7 +36,7 @@ class WalletService {
   Future<List<Transaction>> fetchTransactionHistory(String token) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/payments/history/'),
+        Uri.parse('$baseUrl/rider/wallet/transactions/'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -46,7 +46,7 @@ class WalletService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         List<dynamic>? results;
-        
+
         if (data is Map<String, dynamic>) {
           if (data['results'] != null) {
             results = data['results'];
@@ -70,7 +70,10 @@ class WalletService {
     }
   }
 
-  Future<Map<String, dynamic>?> createTopUpOrder(String token, double amount) async {
+  Future<Map<String, dynamic>?> createTopUpOrder(
+    String token,
+    double amount,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/rider/wallet/create-order/'),
@@ -78,21 +81,23 @@ class WalletService {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({
-          'amount': amount.toStringAsFixed(2),
-        }),
+        body: jsonEncode({'amount': amount.toStringAsFixed(2)}),
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         return jsonDecode(response.body);
       }
-      
+
       try {
         final errorData = jsonDecode(response.body);
-        debugPrint('Create TopUp Order API Error: ${response.statusCode} - $errorData');
+        debugPrint(
+          'Create TopUp Order API Error: ${response.statusCode} - $errorData',
+        );
         return errorData; // Return error data so UI can show message
       } catch (_) {
-        debugPrint('Create TopUp Order Error: ${response.statusCode} - ${response.body}');
+        debugPrint(
+          'Create TopUp Order Error: ${response.statusCode} - ${response.body}',
+        );
       }
       return null;
     } catch (e) {

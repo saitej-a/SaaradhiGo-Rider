@@ -41,17 +41,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (response != null && response['status'] == 'success') {
       final otp = response['data']?['otp'];
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('OTP is: $otp')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('OTP is: $otp')));
       await _safePushToOtp(formattedPhone);
       return;
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(response?['message'] ??
-              'Failed to request OTP. Please try again.')),
+        content: Text(
+          response?['message'] ?? 'Failed to request OTP. Please try again.',
+        ),
+      ),
     );
   }
 
@@ -67,6 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF12110D),
+      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
           Container(color: const Color(0xFF12110D)),
@@ -120,7 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 Expanded(
-                  child: Padding(
+                  child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(32, 40, 32, 0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

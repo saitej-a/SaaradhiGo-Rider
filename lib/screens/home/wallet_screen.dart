@@ -15,6 +15,11 @@ class WalletScreen extends StatefulWidget {
 }
 
 class _WalletScreenState extends State<WalletScreen> {
+  String _selectedFilter = 'All';
+  int _currentPage = 1;
+  final int _itemsPerPage = 10;
+  final ScrollController _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -22,6 +27,36 @@ class _WalletScreenState extends State<WalletScreen> {
       context.read<WalletProvider>().refreshWallet();
       context.read<NotificationProvider>().fetchNotifications();
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _loadMore() {
+    setState(() {
+      _currentPage++;
+    });
+  }
+
+  List<Transaction> _getFilteredTransactions(List<Transaction> transactions) {
+    if (_selectedFilter == 'All') return transactions;
+    if (_selectedFilter == 'Recharges') {
+      return transactions.where((t) => t.isCredit).toList();
+    }
+    if (_selectedFilter == 'Payments') {
+      return transactions.where((t) => !t.isCredit).toList();
+    }
+    return transactions;
+  }
+
+  List<Transaction> _getPaginatedTransactions(List<Transaction> filtered) {
+    final start = 0;
+    final end = _currentPage * _itemsPerPage;
+    if (end >= filtered.length) return filtered;
+    return filtered.sublist(start, end);
   }
 
   @override
@@ -50,16 +85,24 @@ class _WalletScreenState extends State<WalletScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                _WalletBalanceCard(balance: provider.balance, isLoading: provider.isLoading),
+                _WalletBalanceCard(
+                  balance: provider.balance,
+                  isLoading: provider.isLoading,
+                ),
                 const SizedBox(height: 28),
+                _buildFilterChips(),
+                const SizedBox(height: 16),
                 if (provider.isLoading && provider.transactions.isEmpty)
                   const Center(
                     child: Padding(
                       padding: EdgeInsets.all(40.0),
-                      child: CircularProgressIndicator(color: Color(0xFFEEBD2B)),
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFEEBD2B),
+                      ),
                     ),
                   )
-                else if (provider.errorMessage != null && provider.transactions.isEmpty)
+                else if (provider.errorMessage != null &&
+                    provider.transactions.isEmpty)
                   _ErrorState(message: provider.errorMessage!)
                 else if (provider.transactions.isEmpty)
                   const _EmptyTransactionsState()
@@ -75,11 +118,14 @@ class _WalletScreenState extends State<WalletScreen> {
   }
 
   List<Widget> _buildTransactionHistory(List<Transaction> transactions) {
+    final filtered = _getFilteredTransactions(transactions);
+    final paginated = _getPaginatedTransactions(filtered);
+
     // Group transactions by month
     final Map<String, List<Transaction>> grouped = {};
     final DateFormat monthFormat = DateFormat('MMMM yyyy');
 
-    for (var tx in transactions) {
+    for (var tx in paginated) {
       final month = monthFormat.format(tx.dateTime);
       grouped.putIfAbsent(month, () => []).add(tx);
     }
@@ -100,7 +146,67 @@ class _WalletScreenState extends State<WalletScreen> {
       widgets.add(const SizedBox(height: 12));
     });
 
+    // Add Load More button if there are more transactions
+    if (filtered.length > paginated.length) {
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: ElevatedButton(
+            onPressed: _loadMore,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEEBD2B),
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Load More',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+      );
+    }
+
     return widgets;
+  }
+
+  Widget _buildFilterChips() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _FilterChip(
+            label: 'All',
+            isSelected: _selectedFilter == 'All',
+            onTap: () => setState(() {
+              _selectedFilter = 'All';
+              _currentPage = 1;
+            }),
+          ),
+          const SizedBox(width: 8),
+          _FilterChip(
+            label: 'Recharges',
+            isSelected: _selectedFilter == 'Recharges',
+            onTap: () => setState(() {
+              _selectedFilter = 'Recharges';
+              _currentPage = 1;
+            }),
+          ),
+          const SizedBox(width: 8),
+          _FilterChip(
+            label: 'Payments',
+            isSelected: _selectedFilter == 'Payments',
+            onTap: () => setState(() {
+              _selectedFilter = 'Payments';
+              _currentPage = 1;
+            }),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -186,7 +292,7 @@ class _WalletBalanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final formatter = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
-    
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -220,24 +326,33 @@ class _WalletBalanceCard extends StatelessWidget {
                   letterSpacing: 0.5,
                 ),
               ),
-              const Icon(Icons.account_balance_wallet, color: Colors.black54, size: 20),
+              const Icon(
+                Icons.account_balance_wallet,
+                color: Colors.black54,
+                size: 20,
+              ),
             ],
           ),
           const SizedBox(height: 8),
           isLoading && balance == 0
-          ? const SizedBox(
-              height: 40,
-              child: Center(child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2)),
-            )
-          : Text(
-            formatter.format(balance),
-            style: GoogleFonts.inter(
-              color: Colors.black,
-              fontSize: 32,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
-            ),
-          ),
+              ? const SizedBox(
+                  height: 40,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: Colors.black,
+                      strokeWidth: 2,
+                    ),
+                  ),
+                )
+              : Text(
+                  formatter.format(balance),
+                  style: GoogleFonts.inter(
+                    color: Colors.black,
+                    fontSize: 32,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.5,
+                  ),
+                ),
           const SizedBox(height: 24),
           Row(
             children: [
@@ -330,11 +445,14 @@ class _WalletTxnCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dateStr = DateFormat('MMM dd, yyyy \u2022 hh:mm a').format(transaction.dateTime);
-    
+    final dateStr = DateFormat(
+      'MMM dd, yyyy \u2022 hh:mm a',
+    ).format(transaction.dateTime);
+
     Color getStatusColor() {
       final s = transaction.status.toLowerCase();
-      if (s == 'success' || s == 'completed') return const Color(0xFF10B981); // Green
+      if (s == 'success' || s == 'completed')
+        return const Color(0xFF10B981); // Green
       if (s == 'failed') return const Color(0xFFEF4444); // Red
       if (s == 'pending') return const Color(0xFFF59E0B); // Orange
       return const Color(0xFF94A3B8); // Default
@@ -351,21 +469,23 @@ class _WalletTxnCard extends StatelessWidget {
               margin: const EdgeInsets.only(top: 6),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: transaction.isCredit ? const Color(0xFF10B981) : const Color(0xFFEEBD2B),
+                color: transaction.isCredit
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFFEEBD2B),
                 boxShadow: [
                   BoxShadow(
-                    color: (transaction.isCredit ? const Color(0xFF10B981) : const Color(0xFFEEBD2B)).withValues(alpha: 0.4),
+                    color:
+                        (transaction.isCredit
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFFEEBD2B))
+                            .withValues(alpha: 0.4),
                     blurRadius: 8,
                   ),
                 ],
               ),
             ),
             if (showTimelineTail)
-              Container(
-                width: 2,
-                height: 48,
-                color: const Color(0x1AFFFFFF),
-              ),
+              Container(width: 2, height: 48, color: const Color(0x1AFFFFFF)),
           ],
         ),
         const SizedBox(width: 16),
@@ -399,11 +519,16 @@ class _WalletTxnCard extends StatelessWidget {
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: getStatusColor().withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(100),
-                              border: Border.all(color: getStatusColor().withValues(alpha: 0.3)),
+                              border: Border.all(
+                                color: getStatusColor().withValues(alpha: 0.3),
+                              ),
                             ),
                             child: Text(
                               transaction.status.toUpperCase(),
@@ -433,7 +558,9 @@ class _WalletTxnCard extends StatelessWidget {
                 Text(
                   '${transaction.isCredit ? '+' : '-'}\u20B9${transaction.amount}',
                   style: GoogleFonts.inter(
-                    color: transaction.isCredit ? const Color(0xFF10B981) : const Color(0xFFF8FAFC),
+                    color: transaction.isCredit
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFF8FAFC),
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
@@ -455,7 +582,11 @@ class _EmptyTransactionsState extends StatelessWidget {
     return Column(
       children: [
         const SizedBox(height: 40),
-        Icon(Icons.history_rounded, size: 64, color: Colors.white.withValues(alpha: 0.1)),
+        Icon(
+          Icons.history_rounded,
+          size: 64,
+          color: Colors.white.withValues(alpha: 0.1),
+        ),
         const SizedBox(height: 16),
         Text(
           'No transactions yet',
@@ -479,7 +610,11 @@ class _ErrorState extends StatelessWidget {
     return Column(
       children: [
         const SizedBox(height: 40),
-        const Icon(Icons.error_outline_rounded, size: 64, color: Color(0xFFF87171)),
+        const Icon(
+          Icons.error_outline_rounded,
+          size: 64,
+          color: Color(0xFFF87171),
+        ),
         const SizedBox(height: 16),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -496,9 +631,51 @@ class _ErrorState extends StatelessWidget {
         const SizedBox(height: 16),
         TextButton(
           onPressed: () => context.read<WalletProvider>().refreshWallet(),
-          child: const Text('Retry', style: TextStyle(color: Color(0xFFEEBD2B))),
+          child: const Text(
+            'Retry',
+            style: TextStyle(color: Color(0xFFEEBD2B)),
+          ),
         ),
       ],
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFEEBD2B) : const Color(0xFF24211C),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFFEEBD2B)
+                : const Color(0x33FFFFFF),
+          ),
+        ),
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            color: isSelected ? Colors.black : const Color(0xFFE2E8F0),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }
