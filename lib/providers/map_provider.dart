@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:uuid/uuid.dart';
 import '../services/location_service.dart';
@@ -17,8 +18,11 @@ import '../state/ride_state.dart';
 import '../services/websocket_service.dart';
 import '../screens/components/coming_soon_overlay.dart';
 
+enum LocationStatus { unknown, loading, confirmed, failed }
+
 class MapProvider extends ChangeNotifier {
   final ProviderContainer? container;
+  LocationStatus _locationStatus = LocationStatus.unknown;
   final LocationService _locationService;
   final FareService _fareService;
   final DriverService _driverService;
@@ -102,6 +106,52 @@ class MapProvider extends ChangeNotifier {
   bool get isLoadingFares => _isLoadingFares;
   String? get selectedVehicleType => _selectedVehicleType;
   LatLng? get precisePickupLocation => _precisePickupLocation;
+
+  LocationStatus get locationStatus => _locationStatus;
+  bool get isLocationConfirmed => _locationStatus == LocationStatus.confirmed;
+  bool get isRequestEnabled => isLocationConfirmed;
+
+  Future<void> confirmLocation() async {
+    _locationStatus = LocationStatus.loading;
+    notifyListeners();
+
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          _locationStatus = LocationStatus.failed;
+          notifyListeners();
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        _locationStatus = LocationStatus.failed;
+        notifyListeners();
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.bestForNavigation,
+      ).timeout(const Duration(seconds: 10));
+
+      _pickupLocation = PlaceDetails(
+        placeId: 'current',
+        name: 'Current Location',
+        formattedAddress: '',
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+      _locationStatus = LocationStatus.confirmed;
+      notifyListeners();
+      await _calculateRoute();
+    } catch (e) {
+      debugPrint('Error confirming location: $e');
+      _locationStatus = LocationStatus.failed;
+      notifyListeners();
+    }
+  }
 
   // Delegated Getters (Riverpod Sink)
   bool get isRequestingRide =>
@@ -622,16 +672,20 @@ class MapProvider extends ChangeNotifier {
   /// This can be called when fare estimates need to be refreshed
   Future<void> fetchFareEstimates() async {
     if (_pickupLocation == null || _dropLocation == null) {
-      debugPrint('Cannot fetch fare estimates: pickup or drop location is null');
+      debugPrint(
+        'Cannot fetch fare estimates: pickup or drop location is null',
+      );
       return;
     }
 
     // Check if we have distance and duration from route calculation
     final kmMatch = RegExp(r'(\d+\.?\d*)').firstMatch(_distance ?? '');
     final minMatch = RegExp(r'(\d+)').firstMatch(_duration ?? '');
-    
+
     if (kmMatch == null || minMatch == null) {
-      debugPrint('Cannot fetch fare estimates: distance or duration not available');
+      debugPrint(
+        'Cannot fetch fare estimates: distance or duration not available',
+      );
       // Try to recalculate the route first
       await _calculateRoute();
       return;
@@ -639,7 +693,7 @@ class MapProvider extends ChangeNotifier {
 
     final km = double.parse(kmMatch.group(1)!);
     final mins = int.parse(minMatch.group(1)!);
-    
+
     await _estimateAllFares(km, mins);
   }
 }
