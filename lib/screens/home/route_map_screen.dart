@@ -26,7 +26,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   bool _isNavigated = false;
   bool _showTiles = false; // New flag to delay tile loading
 
-
   String _getVehicleTypeDisplay(String? type) {
     switch (type) {
       case 'bike':
@@ -48,13 +47,15 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   bool _isValidCoordinate(LatLng? coordinate) {
     if (coordinate == null) return false;
     // Explicitly check for NaN or infinite values which cause FlutterMap crashes
-    if (coordinate.latitude.isNaN || coordinate.latitude.isInfinite) return false;
-    if (coordinate.longitude.isNaN || coordinate.longitude.isInfinite) return false;
-    
+    if (coordinate.latitude.isNaN || coordinate.latitude.isInfinite)
+      return false;
+    if (coordinate.longitude.isNaN || coordinate.longitude.isInfinite)
+      return false;
+
     // Check for valid latitude (-90 to 90) and longitude (-180 to 180)
     if (coordinate.latitude < -90 || coordinate.latitude > 90) return false;
     if (coordinate.longitude < -180 || coordinate.longitude > 180) return false;
-    
+
     // Check for obviously invalid coordinates (0,0 might be valid but often indicates no location)
     if (coordinate.latitude == 0 && coordinate.longitude == 0) return false;
     return true;
@@ -196,7 +197,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       }
 
       if (pickup == null || !_isValidCoordinate(pickup)) return;
-      
+
       // Don't try to fit camera if we are showing the coming soon overlay (outside service area)
       if (mapProvider.showComingSoonOverlay) return;
 
@@ -205,7 +206,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           .toList();
 
       LatLngBounds bounds;
-      if (dropoff != null && _isValidCoordinate(dropoff) && validPolyline.isNotEmpty) {
+      if (dropoff != null &&
+          _isValidCoordinate(dropoff) &&
+          validPolyline.isNotEmpty) {
         bounds = LatLngBounds.fromPoints(validPolyline);
       } else if (dropoff != null && _isValidCoordinate(dropoff)) {
         bounds = LatLngBounds.fromPoints([pickup, dropoff]);
@@ -225,7 +228,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           maxZoom: 16,
         ),
       );
-      
+
       // Delay tile rendering until the camera has fitted its target bounds
       if (!_showTiles && mounted) {
         setState(() {
@@ -235,7 +238,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     } catch (e) {
       debugPrint('Fit bounds error: $e');
     }
-
   }
 
   @override
@@ -336,16 +338,13 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
           final LatLng? tempCenter =
               _isValidCoordinate(mapProvider.dropLocation?.latLng)
-                  ? mapProvider.dropLocation?.latLng
-                  : _isValidCoordinate(mapProvider.pickupLocation?.latLng)
-                      ? mapProvider.pickupLocation?.latLng
-                      : null;
-                      
+              ? mapProvider.dropLocation?.latLng
+              : _isValidCoordinate(mapProvider.pickupLocation?.latLng)
+              ? mapProvider.pickupLocation?.latLng
+              : null;
+
           final initialCenter = tempCenter ?? const LatLng(17.385044, 78.4867);
-          final initialZoom =
-              (tempCenter != null)
-              ? 14.0
-              : 2.0;
+          final initialZoom = (tempCenter != null) ? 14.0 : 2.0;
 
           final bool hasTripDetails =
               mapProvider.distance != null && mapProvider.duration != null;
@@ -1123,10 +1122,10 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                   onPressed: () {
                     if (mapProvider.dropLocation != null) {
                       context.read<MapProvider>().saveLocation(
-                            mapProvider.dropLocation!.name,
-                            mapProvider.dropLocation!.latitude,
-                            mapProvider.dropLocation!.longitude,
-                          );
+                        mapProvider.dropLocation!.name,
+                        mapProvider.dropLocation!.latitude,
+                        mapProvider.dropLocation!.longitude,
+                      );
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Destination saved to favorites'),
@@ -1182,50 +1181,98 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     MapProvider mapProvider,
     ScrollController scrollController,
   ) {
+    final isLoadingLocation =
+        mapProvider.locationStatus == LocationStatus.loading;
+
     return ListView(
       controller: scrollController,
+      physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       children: [
-          _buildFareEstimatesSection(mapProvider, scrollController),
-          const SizedBox(height: 16),
-          _buildPaymentMethodSelector(mapProvider),
-          Padding(
-            padding: EdgeInsets.only(
-              top: 16,
-              left: 24,
-              right: 24,
-              // Use safe area bottom or a fixed reasonable padding, but avoid fractional overflow
-              bottom: (MediaQuery.of(context).padding.bottom + 16).clamp(16.0, 100.0),
-            ),
-            child: ElevatedButton(
-              onPressed: mapProvider.selectedVehicleType == null
-                  ? null
-                  : () {
-                      context.push('/precise-pickup');
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEEBD2B),
-                foregroundColor: const Color(0xFF1A1814),
-                disabledBackgroundColor: Colors.white.withOpacity(0.1),
-                disabledForegroundColor: Colors.white.withOpacity(0.3),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 8,
-                shadowColor: const Color(0xFFEEBD2B).withOpacity(0.4),
-                textStyle: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              child: Text(
-                mapProvider.selectedVehicleType != null
-                    ? 'Confirm ${_getVehicleTypeDisplay(mapProvider.selectedVehicleType)}'
-                    : 'Select a Ride',
+        if (isLoadingLocation)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEEBD2B).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFFEEBD2B).withOpacity(0.3),
               ),
             ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Color(0xFFEEBD2B),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'Confirming your location...',
+                  style: TextStyle(
+                    color: Color(0xFFEEBD2B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        _buildFareEstimatesSection(mapProvider, scrollController),
+        const SizedBox(height: 16),
+        _buildPaymentMethodSelector(mapProvider),
+        Padding(
+          padding: EdgeInsets.only(
+            top: 16,
+            left: 24,
+            right: 24,
+            // Use safe area bottom or a fixed reasonable padding, but avoid fractional overflow
+            bottom: (MediaQuery.of(context).padding.bottom + 16).clamp(
+              16.0,
+              100.0,
+            ),
+          ),
+          child: ElevatedButton(
+            onPressed: !mapProvider.isLocationConfirmed
+                ? () {
+                    mapProvider.confirmLocation();
+                  }
+                : mapProvider.selectedVehicleType == null
+                ? null
+                : () {
+                    context.push('/precise-pickup');
+                  },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFEEBD2B),
+              foregroundColor: const Color(0xFF1A1814),
+              disabledBackgroundColor: Colors.white.withOpacity(0.1),
+              disabledForegroundColor: Colors.white.withOpacity(0.3),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 8,
+              shadowColor: const Color(0xFFEEBD2B).withOpacity(0.4),
+              textStyle: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+            child: Text(
+              mapProvider.isLocationConfirmed
+                  ? (mapProvider.selectedVehicleType != null
+                        ? 'Confirm ${_getVehicleTypeDisplay(mapProvider.selectedVehicleType)}'
+                        : 'Select a Ride')
+                  : (mapProvider.locationStatus == LocationStatus.loading
+                        ? 'Confirming location...'
+                        : 'Confirm Location'),
+            ),
+          ),
         ),
       ],
     );
