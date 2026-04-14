@@ -1,3 +1,4 @@
+import 'package:cached_network_image_ce/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
@@ -260,7 +261,9 @@ class AuthProvider extends ChangeNotifier {
     _marketingOptIn = prefs.getBool(_marketingOptInKey) ?? false;
     _isUpdated = prefs.getBool(_isUpdatedKey) ?? false;
     _dob = _normalizedString(prefs.getString(_dobKey));
-    _emergencyContact = _normalizedString(prefs.getString(_emergencyContactKey));
+    _emergencyContact = _normalizedString(
+      prefs.getString(_emergencyContactKey),
+    );
     _houseNo = _normalizedString(prefs.getString(_houseNoKey));
     _street = _normalizedString(prefs.getString(_streetKey));
     _city = _normalizedString(prefs.getString(_cityKey));
@@ -465,15 +468,48 @@ class AuthProvider extends ChangeNotifier {
         fallbackCountryCode: _countryCode ?? '+91',
       );
     }
-    
-    _isUpdated = userPayload['is_updated'] ?? userPayload['isUpdated'] ?? _isUpdated;
 
-    _dob = _pickFirstString(userPayload, ['dob', 'date_of_birth', 'birth_date']) ?? _dob;
-    _emergencyContact = _pickFirstString(userPayload, ['emergency_contact', 'emergency_phone']) ?? _emergencyContact;
-    _houseNo = _pickFirstString(userPayload, ['house_no', 'house_number', 'apartment']) ?? _houseNo;
-    _street = _pickFirstString(userPayload, ['street', 'street_name', 'address_line1']) ?? _street;
+    _isUpdated =
+        userPayload['is_updated'] ?? userPayload['isUpdated'] ?? _isUpdated;
+
+    _dob =
+        _pickFirstString(userPayload, ['dob', 'date_of_birth', 'birth_date']) ??
+        _dob;
+    _emergencyContact =
+        _pickFirstString(userPayload, [
+          'emergency_contact',
+          'emergency_phone',
+        ]) ??
+        _emergencyContact;
+    _houseNo =
+        _pickFirstString(userPayload, [
+          'house_no',
+          'house_number',
+          'apartment',
+        ]) ??
+        _houseNo;
+    _street =
+        _pickFirstString(userPayload, [
+          'street',
+          'street_name',
+          'address_line1',
+        ]) ??
+        _street;
     _city = _pickFirstString(userPayload, ['city', 'town']) ?? _city;
-    _zipCode = _pickFirstString(userPayload, ['zip_code', 'zipcode', 'postcode', 'postal_code']) ?? _zipCode;
+    _zipCode =
+        _pickFirstString(userPayload, [
+          'zip_code',
+          'zipcode',
+          'postcode',
+          'postal_code',
+        ]) ??
+        _zipCode;
+
+    if (previousAvatarUrl != null && previousAvatarUrl != _avatarUrl) {
+      Future.microtask(
+        () => CachedNetworkImageProvider(previousAvatarUrl!).evict(),
+      );
+    }
 
     return previousFullName != _fullName ||
         previousAvatarUrl != _avatarUrl ||
@@ -743,7 +779,6 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     _setLoading(true);
     _setError(null);
-
     try {
       await _apiService.clearSession();
       _fullName = null;

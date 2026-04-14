@@ -135,4 +135,43 @@ class WalletService {
       return null;
     }
   }
+
+  /// Direct wallet payment for ride payments
+  /// POST /rider/wallet/payment/
+  Future<Map<String, dynamic>?> directWalletPayment({
+    required String token,
+    required double amount,
+    String? purpose,
+    String? referenceId,
+    String? idempotencyKey,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/rider/wallet/payment/'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'amount': amount.toStringAsFixed(2),
+          if (purpose != null) 'purpose': purpose,
+          if (referenceId != null) 'reference_id': referenceId,
+          if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
+        }),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+
+      final errorData = jsonDecode(response.body);
+      debugPrint(
+        'Direct Wallet Payment Error: ${response.statusCode} - $errorData',
+      );
+      return errorData;
+    } catch (e) {
+      debugPrint('Direct Wallet Payment error: $e');
+      return null;
+    }
+  }
 }

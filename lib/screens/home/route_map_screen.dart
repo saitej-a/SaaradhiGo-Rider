@@ -25,6 +25,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
   MapProvider? _mapProvider;
   bool _isNavigated = false;
   bool _showTiles = false; // New flag to delay tile loading
+  double _lastSnapExtent = 0.15;
 
   String _getVehicleTypeDisplay(String? type) {
     switch (type) {
@@ -1002,8 +1003,6 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         false;
   }
 
-  double _lastSnapExtent = 0.15;
-
   Widget _buildSnapAwareSheet(
     BuildContext context,
     MapProvider mapProvider,
@@ -1072,6 +1071,23 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
         );
+      },
+      onVerticalDragEnd: (details) {
+        if (details.velocity.pixelsPerSecond.dy < 0) {
+          // Swipe up - expand
+          _sheetController.animateTo(
+            0.70,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        } else if (details.velocity.pixelsPerSecond.dy > 0) {
+          // Swipe down - collapse
+          _sheetController.animateTo(
+            0.15,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        }
       },
       child: Container(
         // Reduce vertical padding from 16 to 8 to fit within 15% height constraint
@@ -1156,18 +1172,15 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
+                const Icon(
                   Icons.keyboard_arrow_up,
-                  color: Colors.white.withOpacity(0.4),
+                  color: Colors.white,
                   size: 16,
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  'Pull up for more options',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.4),
-                    fontSize: 12,
-                  ),
+                  'Pull up for options',
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ],
             ),
@@ -1181,67 +1194,23 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     MapProvider mapProvider,
     ScrollController scrollController,
   ) {
-    final isLoadingLocation =
-        mapProvider.locationStatus == LocationStatus.loading;
-
     return ListView(
       controller: scrollController,
-      physics: const NeverScrollableScrollPhysics(),
+      physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       children: [
-        if (isLoadingLocation)
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEEBD2B).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: const Color(0xFFEEBD2B).withOpacity(0.3),
-              ),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Color(0xFFEEBD2B),
-                  ),
-                ),
-                SizedBox(width: 12),
-                Text(
-                  'Confirming your location...',
-                  style: TextStyle(
-                    color: Color(0xFFEEBD2B),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
         _buildFareEstimatesSection(mapProvider, scrollController),
         const SizedBox(height: 16),
         _buildPaymentMethodSelector(mapProvider),
         Padding(
-          padding: EdgeInsets.only(
+          padding: const EdgeInsets.only(
             top: 16,
             left: 24,
             right: 24,
-            // Use safe area bottom or a fixed reasonable padding, but avoid fractional overflow
-            bottom: (MediaQuery.of(context).padding.bottom + 16).clamp(
-              16.0,
-              100.0,
-            ),
+            bottom: 16,
           ),
           child: ElevatedButton(
-            onPressed: !mapProvider.isLocationConfirmed
-                ? () {
-                    mapProvider.confirmLocation();
-                  }
-                : mapProvider.selectedVehicleType == null
+            onPressed: mapProvider.selectedVehicleType == null
                 ? null
                 : () {
                     context.push('/precise-pickup');
@@ -1264,13 +1233,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
               ),
             ),
             child: Text(
-              mapProvider.isLocationConfirmed
-                  ? (mapProvider.selectedVehicleType != null
-                        ? 'Confirm ${_getVehicleTypeDisplay(mapProvider.selectedVehicleType)}'
-                        : 'Select a Ride')
-                  : (mapProvider.locationStatus == LocationStatus.loading
-                        ? 'Confirming location...'
-                        : 'Confirm Location'),
+              mapProvider.selectedVehicleType != null
+                  ? 'Confirm ${_getVehicleTypeDisplay(mapProvider.selectedVehicleType)}'
+                  : 'Select a Ride',
             ),
           ),
         ),

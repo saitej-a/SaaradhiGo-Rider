@@ -1,3 +1,4 @@
+import 'package:cached_network_image_ce/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'dart:io';
@@ -26,8 +27,7 @@ class _EditPersonalInformationScreenState
   static const String _fallbackCountryCode = '+91';
   static const String _fallbackPhoneNumber = '9876543210';
   static const String _fallbackGender = 'Male';
-  static const String _fallbackAvatarUrl =
-      'https://via.placeholder.com/150';
+  static const String _fallbackAvatarUrl = 'https://via.placeholder.com/150';
   static const List<String> _genderOptions = [
     'Male',
     'Female',
@@ -38,7 +38,8 @@ class _EditPersonalInformationScreenState
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _dobController = TextEditingController();
-  final TextEditingController _emergencyContactController = TextEditingController();
+  final TextEditingController _emergencyContactController =
+      TextEditingController();
   final TextEditingController _houseNoController = TextEditingController();
   final TextEditingController _streetController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
@@ -57,8 +58,8 @@ class _EditPersonalInformationScreenState
     final auth = context.read<AuthProvider>();
     _loadInitialData(auth);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-       await auth.fetchProfile();
-       if (mounted) _loadInitialData(auth);
+      await auth.fetchProfile();
+      if (mounted) _loadInitialData(auth);
     });
   }
 
@@ -114,7 +115,7 @@ class _EditPersonalInformationScreenState
         return FileImage(File(_localAvatarPath!));
       }
     }
-    return NetworkImage(remoteAvatarUrl);
+    return CachedNetworkImageProvider(remoteAvatarUrl);
   }
 
   void _showMessage(String text) {
@@ -138,21 +139,44 @@ class _EditPersonalInformationScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 12),
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(2))),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white10,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             const SizedBox(height: 20),
-            Text('SET PROFILE PHOTO', style: GoogleFonts.inter(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+            Text(
+              'SET PROFILE PHOTO',
+              style: GoogleFonts.inter(
+                color: Colors.white54,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.5,
+              ),
+            ),
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _modalOption(icon: Icons.camera_alt_rounded, label: 'Camera', onTap: () {
-                  Navigator.pop(context);
-                  _pickAvatar(ImageSource.camera);
-                }),
-                _modalOption(icon: Icons.photo_library_rounded, label: 'Gallery', onTap: () {
-                  Navigator.pop(context);
-                  _pickAvatar(ImageSource.gallery);
-                }),
+                _modalOption(
+                  icon: Icons.camera_alt_rounded,
+                  label: 'Camera',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickAvatar(ImageSource.camera);
+                  },
+                ),
+                _modalOption(
+                  icon: Icons.photo_library_rounded,
+                  label: 'Gallery',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickAvatar(ImageSource.gallery);
+                  },
+                ),
               ],
             ),
             const SizedBox(height: 32),
@@ -162,7 +186,11 @@ class _EditPersonalInformationScreenState
     );
   }
 
-  Widget _modalOption({required IconData icon, required String label, required VoidCallback onTap}) {
+  Widget _modalOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       child: Column(
@@ -178,7 +206,14 @@ class _EditPersonalInformationScreenState
             child: Icon(icon, color: _primaryColor, size: 28),
           ),
           const SizedBox(height: 10),
-          Text(label, style: GoogleFonts.inter(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );
@@ -401,7 +436,7 @@ class _EditPersonalInformationScreenState
                             right: 0,
                             bottom: 0,
                             child: InkWell(
-                               onTap: _showImageSourceModal,
+                              onTap: _showImageSourceModal,
                               borderRadius: BorderRadius.circular(16),
                               child: Container(
                                 width: 34,
@@ -506,7 +541,9 @@ class _EditPersonalInformationScreenState
                               child: Text(
                                 displayPhoneNumber,
                                 style: GoogleFonts.inter(
-                                  color: const Color(0xFFF8FAFC).withOpacity(0.5),
+                                  color: const Color(
+                                    0xFFF8FAFC,
+                                  ).withOpacity(0.5),
                                   fontSize: 19,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -558,15 +595,18 @@ class _EditPersonalInformationScreenState
                       child: TextField(
                         controller: _dobController,
                         onTap: () async {
-                           final date = await showDatePicker(
-                             context: context,
-                             initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
-                             firstDate: DateTime(1900),
-                             lastDate: DateTime.now(),
-                           );
-                           if (date != null) {
-                             _dobController.text = "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
-                           }
+                          final date = await showDatePicker(
+                            context: context,
+                            initialDate: DateTime.now().subtract(
+                              const Duration(days: 365 * 18),
+                            ),
+                            firstDate: DateTime(1900),
+                            lastDate: DateTime.now(),
+                          );
+                          if (date != null) {
+                            _dobController.text =
+                                "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+                          }
                         },
                         readOnly: true,
                         style: GoogleFonts.inter(
@@ -585,7 +625,11 @@ class _EditPersonalInformationScreenState
                             color: const Color(0xFF64748B),
                             fontSize: 19,
                           ),
-                          suffixIcon: const Icon(Icons.calendar_today, color: _primaryColor, size: 20),
+                          suffixIcon: const Icon(
+                            Icons.calendar_today,
+                            color: _primaryColor,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ),
@@ -646,7 +690,10 @@ class _EditPersonalInformationScreenState
                                   ),
                                   decoration: const InputDecoration(
                                     border: InputBorder.none,
-                                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
                                     hintText: '12A',
                                   ),
                                 ),
@@ -670,7 +717,10 @@ class _EditPersonalInformationScreenState
                                   ),
                                   decoration: const InputDecoration(
                                     border: InputBorder.none,
-                                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
                                     hintText: 'Park Avenue',
                                   ),
                                 ),
@@ -698,7 +748,10 @@ class _EditPersonalInformationScreenState
                                   ),
                                   decoration: const InputDecoration(
                                     border: InputBorder.none,
-                                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
                                     hintText: 'New York',
                                   ),
                                 ),
@@ -722,7 +775,10 @@ class _EditPersonalInformationScreenState
                                   ),
                                   decoration: const InputDecoration(
                                     border: InputBorder.none,
-                                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
                                     hintText: '10001',
                                   ),
                                 ),
@@ -743,7 +799,9 @@ class _EditPersonalInformationScreenState
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: _screenBackground,
-          border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
+          border: Border(
+            top: BorderSide(color: Colors.white.withOpacity(0.05)),
+          ),
         ),
         child: SafeArea(
           child: SizedBox(

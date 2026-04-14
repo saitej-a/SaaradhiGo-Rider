@@ -20,13 +20,14 @@ import 'state/lifecycle_observer.dart';
 import 'state/ride_notifier.dart';
 import 'state/ride_state.dart';
 
-// Import Screens (to be created)
 import 'screens/splash/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/otp_verification_screen.dart';
 import 'screens/profile/profile_setup_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/home/rider_flow_screens.dart';
+import 'screens/home/wallet_screen.dart';
+import 'screens/home/payment_status_screen.dart';
 import 'screens/home/notification_screen.dart';
 import 'screens/home/route_map_screen.dart';
 import 'screens/home/precise_pickup_screen.dart';
@@ -43,7 +44,6 @@ import 'screens/components/payment_pending_banner.dart';
 
 import 'services/push_notification_service.dart';
 import 'services/ongoing_ride_notification_service.dart';
-
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -78,7 +78,9 @@ void main() async {
       child: MultiProvider(
         providers: [
           ChangeNotifierProvider(create: (_) => AuthProvider()),
-          ChangeNotifierProvider(create: (_) => MapProvider(container: container)),
+          ChangeNotifierProvider(
+            create: (_) => MapProvider(container: container),
+          ),
           ChangeNotifierProvider(create: (_) => HistoryProvider()),
           ChangeNotifierProvider(create: (_) => WalletProvider()),
           ChangeNotifierProvider(create: (_) => NotificationProvider()),
@@ -134,7 +136,8 @@ class VahanGoApp extends StatelessWidget {
             final parsedTabIndex = int.tryParse(
               state.uri.queryParameters['tab'] ?? '',
             );
-            final initialTabIndex = (parsedTabIndex != null &&
+            final initialTabIndex =
+                (parsedTabIndex != null &&
                     parsedTabIndex >= 0 &&
                     parsedTabIndex <= 3)
                 ? parsedTabIndex
@@ -213,6 +216,34 @@ class VahanGoApp extends StatelessWidget {
               const AddMoneyScreen(),
         ),
         GoRoute(
+          path: '/wallet',
+          builder: (BuildContext context, GoRouterState state) =>
+              const WalletScreen(),
+        ),
+        GoRoute(
+          path: '/payment-status',
+          builder: (BuildContext context, GoRouterState state) {
+            final extra = state.extra as Map<String, dynamic>? ?? {};
+            final amountVal = extra['amount'];
+            final newBalanceVal = extra['new_balance'];
+            return PaymentStatusScreen(
+              status: extra['status'] ?? 'success',
+              amount: amountVal is double
+                  ? amountVal
+                  : (amountVal is num
+                        ? amountVal.toDouble()
+                        : double.tryParse(amountVal?.toString() ?? '')),
+              transactionId: extra['transaction_id']?.toString(),
+              newBalance: newBalanceVal is double
+                  ? newBalanceVal
+                  : (newBalanceVal is num
+                        ? newBalanceVal.toDouble()
+                        : double.tryParse(newBalanceVal?.toString() ?? '')),
+              errorMessage: extra['error_message']?.toString(),
+            );
+          },
+        ),
+        GoRoute(
           path: '/payment-success',
           builder: (BuildContext context, GoRouterState state) =>
               const PaymentSuccessScreen(),
@@ -228,17 +259,23 @@ class VahanGoApp extends StatelessWidget {
           builder: (context, child) {
             return riverpod.Consumer(
               builder: (context, ref, _) {
-                 final rideState = ref.watch(rideNotifierProvider);
-                 return Stack(
-                   children: [
-                     if (child != null) child,
-                     if (rideState.isSyncing) const SyncOverlay(),
-                     if (rideState.showCancelledOverlay) const CancelledOverlay(),
-                     if (rideState.status == RideStatus.paymentPending)
-                       const Positioned(top: 0, left: 0, right: 0, child: PaymentPendingBanner()),
-                   ]
-                 );
-              }
+                final rideState = ref.watch(rideNotifierProvider);
+                return Stack(
+                  children: [
+                    if (child != null) child,
+                    if (rideState.isSyncing) const SyncOverlay(),
+                    if (rideState.showCancelledOverlay)
+                      const CancelledOverlay(),
+                    if (rideState.status == RideStatus.paymentPending)
+                      const Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: PaymentPendingBanner(),
+                      ),
+                  ],
+                );
+              },
             );
           },
           theme: ThemeData(

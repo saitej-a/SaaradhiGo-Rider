@@ -833,17 +833,118 @@ class _RidePaymentSummaryScreenState extends State<RidePaymentSummaryScreen> {
   ) async {
     if (_selectedPaymentMethod == 'wallet') {
       if (walletProvider.balance < fare) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Insufficient wallet balance. Please add funds.'),
-            backgroundColor: Colors.redAccent,
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Insufficient Balance'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your wallet balance (₹${walletProvider.balance.toStringAsFixed(2)}) is less than the fare (₹${fare.toStringAsFixed(2)}).',
+                ),
+                const SizedBox(height: 16),
+                const Text('Would you like to:'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  context.push(
+                    '/add-money',
+                    extra: {'returnRoute': '/ride-summary'},
+                  );
+                },
+                child: const Text('Add Money'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  setState(() => _selectedPaymentMethod = 'online');
+                },
+                child: const Text('Pay with UPI/Card'),
+              ),
+            ],
           ),
         );
       } else {
-        // Backend handles wallet deduction when trip ends
-        final mapProvider = p.Provider.of<MapProvider>(context, listen: false);
-        mapProvider.cancelRideRequest();
-        context.push('/rate-driver');
+        setState(() => _isProcessing = true);
+        try {
+          final tripIdStr =
+              context.read<MapProvider>().tripId ??
+              rideData?['trip_id']?.toString() ??
+              rideData?['id']?.toString();
+
+          if (tripIdStr == null) {
+            setState(() => _isProcessing = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Error: No active trip ID found. Please refresh.',
+                ),
+              ),
+            );
+            return;
+          }
+
+          final tripId = int.tryParse(tripIdStr);
+          if (tripId == null) {
+            setState(() => _isProcessing = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Error: Invalid Trip ID format.')),
+            );
+            return;
+          }
+
+          // Call wallet payment API
+          final result = await walletProvider.payForRide(
+            amount: fare,
+            tripId: tripId,
+          );
+
+          if (!mounted) return;
+
+          setState(() => _isProcessing = false);
+
+          if (result != null && result['transaction_id'] != null) {
+            if (mounted) {
+              context.push(
+                '/payment-status',
+                extra: {
+                  'status': 'success',
+                  'amount': fare,
+                  'transaction_id': result['transaction_id'],
+                  'new_balance':
+                      result['new_balance'] ?? walletProvider.balance,
+                },
+              );
+            }
+          } else {
+            if (mounted) {
+              context.push(
+                '/payment-status',
+                extra: {
+                  'status': 'failed',
+                  'error_message':
+                      result?['error'] ?? 'Could not process wallet payment',
+                },
+              );
+            }
+          }
+        } catch (e) {
+          setState(() => _isProcessing = false);
+          if (mounted) {
+            context.push(
+              '/payment-status',
+              extra: {
+                'status': 'failed',
+                'error_message': 'Payment error: ${e.toString()}',
+              },
+            );
+          }
+        }
       }
     } else {
       setState(() => _isProcessing = true);

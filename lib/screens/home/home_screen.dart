@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:cached_network_image_ce/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -32,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final FocusNode _dropFocusNode = FocusNode();
   bool _isGettingLocation = false;
   LatLng? _currentPosition;
-  
+
   // Context safety: store references to providers
   MapProvider? _mapProvider;
   bool _isRedirecting = false;
@@ -42,17 +43,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _tabIndex = widget.initialTabIndex.clamp(0, 3).toInt();
-    
+
     // Listen to MapProvider for real-time redirection
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _getCurrentLocation();
       context.read<MapProvider>().fetchDynamicHomeData();
       context.read<NotificationProvider>().fetchNotifications();
-      
+
       _mapProvider = context.read<MapProvider>();
       _mapProvider?.addListener(_onMapProviderChanged);
-      
+
       _checkAndRedirectActiveRide();
     });
   }
@@ -71,16 +72,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _checkAndRedirectActiveRide({bool isAutomatic = false}) async {
     if (!mounted || _isRedirecting) return;
-    
+
     final mapProvider = _mapProvider ?? context.read<MapProvider>();
-    
+
     // Safety: If we are already redirecting, or if the provider is in a stable state
     // that matches the current screen, we should avoid redundant checks.
-    
+
     String currentRoute = '';
     try {
       // Use the router's state safely. If this fails, we are likely detached.
-      currentRoute = GoRouter.of(context).routerDelegate.currentConfiguration.last.matchedLocation;
+      currentRoute = GoRouter.of(
+        context,
+      ).routerDelegate.currentConfiguration.last.matchedLocation;
     } catch (e) {
       debugPrint('Guard: Failed to get current route, likely detached: $e');
       return;
@@ -90,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     // Determine target based on provider state
     String? targetRoute;
-    
+
     // Priority 1: Check actual ride status from response
     if (mapProvider.rideRequestResponse != null) {
       final status = mapProvider.rideRequestResponse['status'];
@@ -99,13 +102,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       } else if (status == 'start' || status == 'active') {
         targetRoute = '/tracking';
       }
-    } 
-    
+    }
+
     // Priority 2: Check if currently searching
     if (targetRoute == null && mapProvider.isRequestingRide) {
       targetRoute = '/searching-driver';
-    } 
-    
+    }
+
     // Priority 3: Persistent check (for app restarts/deep links)
     if (targetRoute == null) {
       // Only do a server check if we are NOT in an automatic listener update
@@ -127,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // or if we are clearly on the wrong ride screen.
     final rideScreens = ['/searching-driver', '/driver-found', '/tracking'];
     bool onRideScreen = rideScreens.contains(currentRoute);
-    
+
     if (targetRoute != null && targetRoute != currentRoute) {
       // If we are already on some ride screen, don't jump around unless it's a forward progression
       // The individual screens handle their own forward progression listeners.
@@ -135,14 +138,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       debugPrint('Redirecting to $targetRoute (current: $currentRoute)');
       _isRedirecting = true;
-      
+
       if (!isAutomatic) {
         try {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Row(
                 children: [
-                  SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFEEBD2B))),
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFFEEBD2B),
+                    ),
+                  ),
                   SizedBox(width: 16),
                   Text('Resuming your active ride...'),
                 ],
@@ -152,9 +162,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           );
         } catch (_) {}
       }
-      
+
       context.push(targetRoute);
-      
+
       // Keep guard active long enough for navigation to settle
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) _isRedirecting = false;
@@ -164,17 +174,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _onMapProviderChanged() {
     if (!mounted || _isRedirecting) return;
-    
+
     // Passive guard: only trigger if we are on the Home screen
     String currentRoute = '';
     try {
-      currentRoute = GoRouter.of(context).routerDelegate.currentConfiguration.last.matchedLocation;
-    } catch (_) { return; }
+      currentRoute = GoRouter.of(
+        context,
+      ).routerDelegate.currentConfiguration.last.matchedLocation;
+    } catch (_) {
+      return;
+    }
 
     if (currentRoute != '/home') return;
 
     final mapProvider = _mapProvider ?? context.read<MapProvider>();
-    
+
     // Check for coming soon overlay
     if (mapProvider.showComingSoonOverlay) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -189,9 +203,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         }
       });
     }
-    
+
     if (mapProvider.isTripInProgress) {
-        _checkAndRedirectActiveRide(isAutomatic: true);
+      _checkAndRedirectActiveRide(isAutomatic: true);
     }
   }
 
@@ -201,19 +215,37 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1C18),
-        title: Text('Active Ride', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Text('You already have an active ride request or trip. Would you like to view it?', style: GoogleFonts.inter(color: Colors.white70)),
+        title: Text(
+          'Active Ride',
+          style: GoogleFonts.inter(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'You already have an active ride request or trip. Would you like to view it?',
+          style: GoogleFonts.inter(color: Colors.white70),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Dismiss', style: GoogleFonts.inter(color: Colors.white54)),
+            child: Text(
+              'Dismiss',
+              style: GoogleFonts.inter(color: Colors.white54),
+            ),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               _checkAndRedirectActiveRide();
             },
-            child: Text('View Ride', style: GoogleFonts.inter(color: const Color(0xFFEEBD2B), fontWeight: FontWeight.bold)),
+            child: Text(
+              'View Ride',
+              style: GoogleFonts.inter(
+                color: const Color(0xFFEEBD2B),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -230,7 +262,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (!serviceEnabled) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Location services are disabled. Please enable them in settings.')),
+            const SnackBar(
+              content: Text(
+                'Location services are disabled. Please enable them in settings.',
+              ),
+            ),
           );
         }
         return;
@@ -252,7 +288,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (permission == LocationPermission.deniedForever) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Location permissions are permanently denied, we cannot request permissions.')),
+            const SnackBar(
+              content: Text(
+                'Location permissions are permanently denied, we cannot request permissions.',
+              ),
+            ),
           );
         }
         return;
@@ -271,7 +311,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (mounted) {
         String addressText = "Current Location";
         final mapService = MapService();
-        final fetchedAddress = await mapService.getAddressFromCoordinates(position.latitude, position.longitude);
+        final fetchedAddress = await mapService.getAddressFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
         if (fetchedAddress != null && fetchedAddress.isNotEmpty) {
           addressText = fetchedAddress;
         }
@@ -280,7 +323,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           _pickupController.text = addressText;
           final provider = context.read<MapProvider>();
           await provider.setPickupLocation(
-            'current', 
+            'current',
             defaultName: addressText,
             presetLocation: LatLng(position.latitude, position.longitude),
           );
@@ -288,9 +331,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error getting location: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error getting location: $e')));
       }
     } finally {
       if (mounted) {
@@ -300,7 +343,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -407,91 +449,67 @@ class _HomeTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          if (mapProvider.isLoadingHomeData && favorites.isEmpty && recents.isEmpty)
+          if (mapProvider.isLoadingHomeData &&
+              favorites.isEmpty &&
+              recents.isEmpty)
             const Padding(
               padding: EdgeInsets.all(20.0),
-              child: Center(child: CircularProgressIndicator(color: Color(0xFFEEBD2B))),
+              child: Center(
+                child: CircularProgressIndicator(color: Color(0xFFEEBD2B)),
+              ),
             )
           else ...[
             // Active Ride Tile
             if (mapProvider.isTripInProgress)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: _ActiveRideTile(
-                  onTap: onActiveRideTap,
-                ),
+                child: _ActiveRideTile(onTap: onActiveRideTap),
               ),
 
             // Favorites
-            ...favorites.map((fav) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _SavedTile(
-                icon: Icons.bookmark,
-                title: 'Saved',
-                subtitle: fav.addressText,
-                onTap: () async {
-                  final provider = context.read<MapProvider>();
-                  if (provider.isTripInProgress) {
-                    onActiveRideTap();
-                    return;
-                  }
-                  // Navigate immediately, calculate route in background
-                  context.push('/route-map');
-                  try {
-                    await provider.prepareAndCalculateRoute(
-                      pickupName: pickupController.text.isNotEmpty ? pickupController.text : 'Current Location',
-                      presetPickup: currentPosition,
-                      dropPlaceId: fav.latitude != 0 ? '${fav.latitude},${fav.longitude}' : 'current',
-                    );
-                  } catch (e) {
-                    // Check if error is due to pickup location outside Hyderabad
-                    if (e.toString().contains('Pickup location outside Hyderabad')) {
-                      // Show ComingSoonOverlay
-                      if (context.mounted) {
-                        showDialog(
-                          context: context,
-                          builder: (context) => const ComingSoonOverlay(),
-                        );
-                      }
-                      return; // Don't proceed with route calculation
+            ...favorites.map(
+              (fav) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _SavedTile(
+                  icon: Icons.bookmark,
+                  title: 'Saved',
+                  subtitle: fav.addressText,
+                  onTap: () async {
+                    final provider = context.read<MapProvider>();
+                    if (provider.isTripInProgress) {
+                      onActiveRideTap();
+                      return;
                     }
-                    // Re-throw other errors
-                    rethrow;
-                  }
-                },
-                trailing: IconButton(
-                  icon: const Icon(Icons.bookmark_remove, color: Colors.white38, size: 20),
-                  onPressed: () {
-                    context.read<MapProvider>().deleteLocation(fav.id);
-                  },
-                ),
-              ),
-            )),
-            // Recents
-            ...recents.map((trip) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _SavedTile(
-                icon: Icons.history,
-                title: 'Recent Trip',
-                subtitle: trip.destinationAddress,
-                onTap: () async {
-                  final provider = context.read<MapProvider>();
-                  if (provider.isTripInProgress) {
-                    onActiveRideTap();
-                    return;
-                  }
-                  // Navigate immediately, calculate route in background
-                  context.push('/route-map');
-                  if (trip.destinationLat != null && trip.destinationLng != null) {
+                    // Check if pickup is loaded before navigating
+                    if (provider.pickupLocation == null &&
+                        currentPosition == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please select pickup location first'),
+                          backgroundColor: Color(0xFFEEBD2B),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+
+                    // Navigate immediately, calculate route in background
+                    context.push('/route-map');
                     try {
                       await provider.prepareAndCalculateRoute(
-                        pickupName: pickupController.text.isNotEmpty ? pickupController.text : 'Current Location',
+                        pickupName: pickupController.text.isNotEmpty
+                            ? pickupController.text
+                            : 'Current Location',
                         presetPickup: currentPosition,
-                        dropPlaceId: '${trip.destinationLat},${trip.destinationLng}',
+                        dropPlaceId: fav.latitude != 0
+                            ? '${fav.latitude},${fav.longitude}'
+                            : 'current',
                       );
                     } catch (e) {
                       // Check if error is due to pickup location outside Hyderabad
-                      if (e.toString().contains('Pickup location outside Hyderabad')) {
+                      if (e.toString().contains(
+                        'Pickup location outside Hyderabad',
+                      )) {
                         // Show ComingSoonOverlay
                         if (context.mounted) {
                           showDialog(
@@ -504,28 +522,107 @@ class _HomeTab extends StatelessWidget {
                       // Re-throw other errors
                       rethrow;
                     }
-                  } else {
-                    provider.fetchSuggestions(trip.destinationAddress);
-                  }
-                },
-                trailing: IconButton(
-                  icon: const Icon(Icons.bookmark_add_outlined, color: Color(0xFFEEBD2B), size: 20),
-                  onPressed: () {
-                    if (trip.destinationLat != null && trip.destinationLng != null) {
-                      context.read<MapProvider>().saveLocation(
-                        trip.destinationAddress,
-                        trip.destinationLat!,
-                        trip.destinationLng!,
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Location saved to favorites')),
-                      );
-                    }
                   },
+                  trailing: IconButton(
+                    icon: const Icon(
+                      Icons.bookmark_remove,
+                      color: Colors.white38,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      context.read<MapProvider>().deleteLocation(fav.id);
+                    },
+                  ),
                 ),
               ),
-            )),
-            
+            ),
+            // Recents
+            ...recents.map(
+              (trip) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _SavedTile(
+                  icon: Icons.history,
+                  title: 'Recent Trip',
+                  subtitle: trip.destinationAddress,
+                  onTap: () async {
+                    final provider = context.read<MapProvider>();
+                    if (provider.isTripInProgress) {
+                      onActiveRideTap();
+                      return;
+                    }
+                    // Check if pickup is loaded before navigating
+                    if (provider.pickupLocation == null &&
+                        currentPosition == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please select pickup location first'),
+                          backgroundColor: Color(0xFFEEBD2B),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+
+                    // Navigate immediately, calculate route in background
+                    context.push('/route-map');
+                    if (trip.destinationLat != null &&
+                        trip.destinationLng != null) {
+                      try {
+                        await provider.prepareAndCalculateRoute(
+                          pickupName: pickupController.text.isNotEmpty
+                              ? pickupController.text
+                              : 'Current Location',
+                          presetPickup: currentPosition,
+                          dropPlaceId:
+                              '${trip.destinationLat},${trip.destinationLng}',
+                        );
+                      } catch (e) {
+                        // Check if error is due to pickup location outside Hyderabad
+                        if (e.toString().contains(
+                          'Pickup location outside Hyderabad',
+                        )) {
+                          // Show ComingSoonOverlay
+                          if (context.mounted) {
+                            showDialog(
+                              context: context,
+                              builder: (context) => const ComingSoonOverlay(),
+                            );
+                          }
+                          return; // Don't proceed with route calculation
+                        }
+                        // Re-throw other errors
+                        rethrow;
+                      }
+                    } else {
+                      provider.fetchSuggestions(trip.destinationAddress);
+                    }
+                  },
+                  trailing: IconButton(
+                    icon: const Icon(
+                      Icons.bookmark_add_outlined,
+                      color: Color(0xFFEEBD2B),
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      if (trip.destinationLat != null &&
+                          trip.destinationLng != null) {
+                        context.read<MapProvider>().saveLocation(
+                          trip.destinationAddress,
+                          trip.destinationLat!,
+                          trip.destinationLng!,
+                        );
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Location saved to favorites'),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ),
+
             if (favorites.isEmpty && recents.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 20),
@@ -546,7 +643,6 @@ class _HomeTab extends StatelessWidget {
 // History screen is now a separate component
 
 // Wallet screen is now a separate component
-
 
 // Profile tab implementation
 
@@ -773,34 +869,28 @@ class _ProfileAvatar extends StatelessWidget {
         ],
       ),
       child: ClipOval(
-        child: Image.network(
-          imageUrl,
+        child: CachedNetworkImage(
+          imageUrl: imageUrl,
           fit: BoxFit.cover,
-          errorBuilder: (_, _, _) {
-            return Container(
-              color: const Color(0xFF24211C),
-              child: const Icon(
-                Icons.person,
-                size: 56,
-                color: Color(0xFFCBD5E1),
+          memCacheWidth: 200,
+          memCacheHeight: 200,
+          fadeInDuration: const Duration(milliseconds: 200),
+          placeholder: (context, url) => Container(
+            color: const Color(0xFF24211C),
+            alignment: Alignment.center,
+            child: const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Color(0xFFEEBD2B),
               ),
-            );
-          },
-          loadingBuilder: (context, child, progress) {
-            if (progress == null) return child;
-            return Container(
-              color: const Color(0xFF24211C),
-              alignment: Alignment.center,
-              child: const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Color(0xFFEEBD2B),
-                ),
-              ),
-            );
-          },
+            ),
+          ),
+          errorWidget: (context, url, error) => Container(
+            color: const Color(0xFF24211C),
+            child: const Icon(Icons.person, size: 56, color: Color(0xFFCBD5E1)),
+          ),
         ),
       ),
     );
@@ -954,7 +1044,7 @@ class _LocationCardState extends State<_LocationCard> {
 
   void _onPickupSearchChanged() {
     final text = widget.pickupController.text;
-    
+
     // Safety check for user-defined threshold and specific strings
     if (text == 'Current Location' || text.isEmpty) {
       if (text.isEmpty && widget.pickupFocusNode.hasFocus) {
@@ -977,7 +1067,7 @@ class _LocationCardState extends State<_LocationCard> {
     } else {
       context.read<MapProvider>().clearSuggestions();
       if (_isSearching && _isPickupFocused) {
-        // If we were searching and now deleted below 4 chars, 
+        // If we were searching and now deleted below 4 chars,
         // hide unless it's empty (which is handled above)
         setState(() => _isSearching = false);
         _hideOverlay();
@@ -1059,7 +1149,8 @@ class _LocationCardState extends State<_LocationCard> {
             );
           }
 
-          if (mapProvider.suggestions.isEmpty && (!_isPickupFocused || widget.pickupController.text.isNotEmpty)) {
+          if (mapProvider.suggestions.isEmpty &&
+              (!_isPickupFocused || widget.pickupController.text.isNotEmpty)) {
             return const SizedBox.shrink();
           }
 
@@ -1068,18 +1159,15 @@ class _LocationCardState extends State<_LocationCard> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (_isPickupFocused)
-                    _buildCurrentLocationOption(),
+                  if (_isPickupFocused) _buildCurrentLocationOption(),
                   if (mapProvider.suggestions.isNotEmpty)
                     ListView.separated(
                       padding: EdgeInsets.zero,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: mapProvider.suggestions.length,
-                      separatorBuilder: (context, index) => const Divider(
-                        height: 1, 
-                        color: Color(0x1AFFFFFF),
-                      ),
+                      separatorBuilder: (context, index) =>
+                          const Divider(height: 1, color: Color(0x1AFFFFFF)),
                       itemBuilder: (context, index) {
                         final suggestion = mapProvider.suggestions[index];
                         return _buildSuggestionTile(suggestion);
@@ -1097,7 +1185,10 @@ class _LocationCardState extends State<_LocationCard> {
   Widget _buildCurrentLocationOption() {
     return ListTile(
       leading: const Icon(Icons.my_location, color: Color(0xFFEEBD2B)),
-      title: const Text('Current Location', style: TextStyle(color: Colors.white)),
+      title: const Text(
+        'Current Location',
+        style: TextStyle(color: Colors.white),
+      ),
       onTap: () {
         if (context.read<MapProvider>().isTripInProgress) {
           _hideOverlay();
@@ -1116,30 +1207,43 @@ class _LocationCardState extends State<_LocationCard> {
       behavior: HitTestBehavior.opaque,
       onTap: () async {
         final provider = context.read<MapProvider>();
-        
+
         if (provider.isTripInProgress) {
           _hideOverlay();
           widget.onActiveRideTap();
           return;
         }
-        
+
         if (_isPickupFocused) {
           widget.pickupController.text = suggestion.mainText;
           await provider.setPickupLocation(suggestion.placeId);
         } else {
           widget.dropController.text = suggestion.mainText;
           widget.dropFocusNode.unfocus();
-          
+
+          if (provider.pickupLocation == null &&
+              widget.currentPosition == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please select pickup location first'),
+                backgroundColor: Color(0xFFEEBD2B),
+                duration: Duration(seconds: 2),
+              ),
+            );
+            return;
+          }
+
           if (mounted) {
             context.push('/route-map');
           }
-          
+
           try {
             await provider.prepareAndCalculateRoute(
               pickupName: widget.pickupController.text.isNotEmpty
                   ? widget.pickupController.text
                   : 'Current Location',
-              presetPickup: provider.pickupLocation?.latLng ?? widget.currentPosition,
+              presetPickup:
+                  provider.pickupLocation?.latLng ?? widget.currentPosition,
               dropPlaceId: suggestion.placeId,
             );
           } catch (e) {
@@ -1159,7 +1263,7 @@ class _LocationCardState extends State<_LocationCard> {
             rethrow;
           }
         }
-        
+
         _hideOverlay();
         setState(() => _isSearching = false);
       },
@@ -1197,7 +1301,7 @@ class _LocationCardState extends State<_LocationCard> {
       ),
     );
   }
-  
+
   Widget _buildOverlayContainer({required Widget child}) {
     return Container(
       constraints: const BoxConstraints(maxHeight: 300),
@@ -1213,10 +1317,7 @@ class _LocationCardState extends State<_LocationCard> {
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: child,
-      ),
+      child: ClipRRect(borderRadius: BorderRadius.circular(16), child: child),
     );
   }
 
@@ -1231,118 +1332,130 @@ class _LocationCardState extends State<_LocationCard> {
       child: CompositedTransformTarget(
         link: _layerLink,
         child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF24211C),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0x33FFFFFF)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x22000000),
-              blurRadius: 18,
-              offset: Offset(0, 8),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-        child: Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-              Column(
+          decoration: BoxDecoration(
+            color: const Color(0xFF24211C),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0x33FFFFFF)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x22000000),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: const BoxDecoration(
-                      color: Color(0x1AEEBD2B),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Center(
-                      child: SizedBox(
-                        width: 10,
-                        height: 10,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Color(0xFFEEBD2B),
-                            shape: BoxShape.circle,
+                  Column(
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: const BoxDecoration(
+                          color: Color(0x1AEEBD2B),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: SizedBox(
+                            width: 10,
+                            height: 10,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Color(0xFFEEBD2B),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 6),
+                      Container(
+                        width: 2,
+                        height: 34,
+                        color: const Color(0x1AFFFFFF),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
-                  Container(
-                    width: 2,
-                    height: 34,
-                    color: const Color(0x1AFFFFFF),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _InputSection(
+                      label: 'CURRENT LOCATION',
+                      controller: widget.pickupController,
+                      focusNode: widget.pickupFocusNode,
+                      hint: 'Enter pickup point',
+                      readOnly: false,
+                      suffixIcon: widget.isGettingLocation
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFFEEBD2B),
+                              ),
+                            )
+                          : InkWell(
+                              onTap: () {
+                                if (context
+                                    .read<MapProvider>()
+                                    .isTripInProgress) {
+                                  widget.onActiveRideTap();
+                                  return;
+                                }
+                                widget.onLocationTap();
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: const Padding(
+                                padding: EdgeInsets.all(4.0),
+                                child: Icon(
+                                  Icons.my_location,
+                                  color: Color(0xFFEEBD2B),
+                                  size: 18,
+                                ),
+                              ),
+                            ),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _InputSection(
-                  label: 'CURRENT LOCATION',
-                  controller: widget.pickupController,
-                  focusNode: widget.pickupFocusNode,
-                  hint: 'Enter pickup point',
-                  readOnly: false,
-                  suffixIcon: widget.isGettingLocation 
-                      ? const SizedBox(
-                          width: 18, 
-                          height: 18, 
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFEEBD2B))
-                        )
-                      : InkWell(
-                          onTap: () {
-                            if (context.read<MapProvider>().isTripInProgress) {
-                              widget.onActiveRideTap();
-                              return;
-                            }
-                            widget.onLocationTap();
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: const Padding(
-                            padding: EdgeInsets.all(4.0),
-                            child: Icon(Icons.my_location, color: Color(0xFFEEBD2B), size: 18),
-                          ),
-                        ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(
-                width: 28,
-                height: 28,
-                child: Center(
-                  child: Icon(
-                    Icons.location_on,
-                    color: Color(0xFFEEBD2B),
-                    size: 22,
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: Center(
+                      child: Icon(
+                        Icons.location_on,
+                        color: Color(0xFFEEBD2B),
+                        size: 22,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _InputSection(
-                  label: 'DESTINATION',
-                  controller: widget.dropController,
-                  focusNode: widget.dropFocusNode,
-                  hint: 'Search destination',
-                  isHintBig: true,
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _InputSection(
+                      label: 'DESTINATION',
+                      controller: widget.dropController,
+                      focusNode: widget.dropFocusNode,
+                      hint: 'Search destination',
+                      isHintBig: true,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
-    )));
+    );
   }
 }
+
 class _InputSection extends StatelessWidget {
   final String label;
   final TextEditingController controller;
@@ -1403,10 +1516,7 @@ class _InputSection extends StatelessWidget {
                 ),
               ),
             ),
-            if (suffixIcon != null) ...[
-              const SizedBox(width: 8),
-              suffixIcon!,
-            ],
+            if (suffixIcon != null) ...[const SizedBox(width: 8), suffixIcon!],
           ],
         ),
         if (label == 'CURRENT LOCATION') ...[
@@ -1491,8 +1601,6 @@ class _SavedTile extends StatelessWidget {
     );
   }
 }
-
-
 
 class _ProfileMenuTile extends StatelessWidget {
   const _ProfileMenuTile({required this.icon, required this.title, this.onTap});
@@ -1653,6 +1761,7 @@ class _NavItem extends StatelessWidget {
     );
   }
 }
+
 class _ActiveRideTile extends StatelessWidget {
   const _ActiveRideTile({required this.onTap});
 
@@ -1662,7 +1771,7 @@ class _ActiveRideTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final mapProvider = context.watch<MapProvider>();
     final destination = mapProvider.destinationAddress ?? 'Active Ride';
-    
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1684,7 +1793,10 @@ class _ActiveRideTile extends StatelessWidget {
                   color: Color(0xFFEEBD2B),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.directions_car, color: Color(0xFF1A1814)),
+                child: const Icon(
+                  Icons.directions_car,
+                  color: Color(0xFF1A1814),
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -1703,7 +1815,10 @@ class _ActiveRideTile extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.redAccent,
                             borderRadius: BorderRadius.circular(4),

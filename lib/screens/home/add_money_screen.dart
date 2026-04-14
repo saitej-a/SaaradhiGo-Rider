@@ -37,15 +37,15 @@ class _AddMoneyScreenState extends State<AddMoneyScreen> {
     if (amount == null) return;
 
     if (amount < 100) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Minimum amount is ₹100')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Minimum amount is ₹100')));
       return;
     }
     if (amount > 2000) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Maximum amount is ₹2000')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Maximum amount is ₹2000')));
       return;
     }
 
@@ -55,11 +55,16 @@ class _AddMoneyScreenState extends State<AddMoneyScreen> {
       final provider = context.read<WalletProvider>();
       final success = await provider.topUp(amount, context);
       if (success == true && mounted) {
-        context.push('/payment-success');
+        final routerExtra =
+            GoRouterState.of(context).extra as Map<String, dynamic>?;
+        final returnRoute = routerExtra?['returnRoute'] as String?;
+        context.push('/payment-success', extra: {'returnRoute': returnRoute});
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(provider.errorMessage ?? 'Payment failed. Please try again.'),
+            content: Text(
+              provider.errorMessage ?? 'Payment failed. Please try again.',
+            ),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -74,14 +79,18 @@ class _AddMoneyScreenState extends State<AddMoneyScreen> {
   @override
   Widget build(BuildContext context) {
     final formatter = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
-    
+
     return Scaffold(
       backgroundColor: const Color(0xFF12110E),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: Colors.white,
+            size: 20,
+          ),
           onPressed: () => context.pop(),
         ),
         title: Text(
@@ -122,7 +131,7 @@ class _AddMoneyScreenState extends State<AddMoneyScreen> {
                     ),
                   ),
                   const SizedBox(height: 48),
-                  
+
                   // Amount Input
                   Text(
                     'Top up amount',
@@ -163,7 +172,7 @@ class _AddMoneyScreenState extends State<AddMoneyScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
+
                   // Quick Amount Chips
                   Wrap(
                     spacing: 12,
@@ -173,12 +182,19 @@ class _AddMoneyScreenState extends State<AddMoneyScreen> {
                         onTap: () => _handleQuickAmount(amount),
                         borderRadius: BorderRadius.circular(100),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEEBD2B).withValues(alpha: 0.1),
+                            color: const Color(
+                              0xFFEEBD2B,
+                            ).withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(100),
                             border: Border.all(
-                              color: const Color(0xFFEEBD2B).withValues(alpha: 0.3),
+                              color: const Color(
+                                0xFFEEBD2B,
+                              ).withValues(alpha: 0.3),
                             ),
                           ),
                           child: Text(
@@ -193,9 +209,9 @@ class _AddMoneyScreenState extends State<AddMoneyScreen> {
                       );
                     }).toList(),
                   ),
-                  
+
                   const Spacer(),
-                  
+
                   // Proceed Button
                   SizedBox(
                     width: double.infinity,
@@ -205,7 +221,9 @@ class _AddMoneyScreenState extends State<AddMoneyScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFEEBD2B),
                         foregroundColor: Colors.black,
-                        disabledBackgroundColor: const Color(0xFFEEBD2B).withValues(alpha: 0.5),
+                        disabledBackgroundColor: const Color(
+                          0xFFEEBD2B,
+                        ).withValues(alpha: 0.5),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
